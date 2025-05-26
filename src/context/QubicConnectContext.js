@@ -8,6 +8,7 @@ import { QubicVault } from "@qubic-lib/qubic-ts-vault-library";
 import SignClient from "@walletconnect/sign-client";
 import QRCode from "qrcode";
 import { decodeUint8ArrayTx, base64ToUint8Array, uint8ArrayToBase64 } from "../utils/contractUtils";
+import PropTypes from 'prop-types';
 
 // Helper function to sign transactions
 async function localSignTx(qHelper, privateKey, tx) {
@@ -884,6 +885,10 @@ export function QubicConnectProvider({ children }) {
     </QubicConnectContext.Provider>
   );
 }
+
+QubicConnectProvider.propTypes = {
+  children: PropTypes.node.isRequired,
+};
 
 export function useQubicConnect() {
   const ctx = useContext(QubicConnectContext);

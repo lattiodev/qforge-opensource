@@ -5,6 +5,7 @@ import Card from './ui/Card'; // Adjust path if needed
 import CloseIcon from '../../assets/close.svg'; // Adjust path if needed
 import { ClockIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline'; // Adjust path if needed
 import { formatQubicAmount } from './util'; // Adjust path if needed
+import PropTypes from 'prop-types';
 
 // --- Faucet Constants (Copied from App.js) ---
 const MAINNET_FAUCET_AMOUNT = 1000n ; // 1,000 Qubic in qus
@@ -170,6 +171,11 @@ const FaucetModal = ({ open, onClose }) => {
             </Card>
         </div>
     );
+};
+
+FaucetModal.propTypes = {
+  open: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
 };
 
 export default FaucetModal;
