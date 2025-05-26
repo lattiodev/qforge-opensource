@@ -106,3 +106,11 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Support
 
 For issues and feature requests, please use the GitHub issue tracker.
+
+## Known Issues
+
+- **QX contract**: The `assetaskorders` view function is currently returning 0. This is a known bug and will be addressed in a future update.
+
+## Planned Features
+
+- Allow input parameters to accept more than just whole numbers (e.g., decimals, strings, etc.) for greater flexibility in contract interaction.
