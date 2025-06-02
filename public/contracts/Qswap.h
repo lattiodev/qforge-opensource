@@ -320,6 +320,8 @@ protected:
 	};
 
 	PUBLIC_FUNCTION_WITH_LOCALS(Fees)
+	{
+
 		CALL_OTHER_CONTRACT_FUNCTION(QX, Fees, locals.feesInput, locals.feesOutput);
 
 		output.assetIssuanceFee = locals.feesOutput.assetIssuanceFee;
@@ -327,7 +329,7 @@ protected:
 		output.transferFee = locals.feesOutput.transferFee;
 		output.swapFee = state.swapFeeRate;
 		output.protocolFee = state.protocolFeeRate;
-	_
+	}
 
 	struct GetPoolBasicState_locals{
 		id poolID;
@@ -337,6 +339,7 @@ protected:
 	};
 
 	PUBLIC_FUNCTION_WITH_LOCALS(GetPoolBasicState)
+	{
 		output.poolExists = 0;
 		output.totalLiqudity = -1;
 		output.reservedAssetAmount = -1;
@@ -369,7 +372,7 @@ protected:
 		output.reservedQuAmount = locals.poolBasicState.reservedQuAmount;
 		output.reservedAssetAmount = locals.poolBasicState.reservedAssetAmount;
 		output.totalLiqudity = locals.poolBasicState.totalLiqudity;
-	_
+	}
 
 	struct GetLiqudityOf_locals{
 		id poolID;
@@ -377,6 +380,7 @@ protected:
 	};
 
 	PUBLIC_FUNCTION_WITH_LOCALS(GetLiqudityOf)
+	{
 		output.liqudity = 0;
 
 		locals.poolID = input.assetIssuer;
@@ -391,7 +395,7 @@ protected:
 			}
 			locals.liqElementIndex = state.mLiquditys.nextElementIndex(locals.liqElementIndex);
 		}
-	_
+	}
 
 	struct QuoteExactQuInput_locals{
 		id poolID;
@@ -403,6 +407,7 @@ protected:
 	};
 
 	PUBLIC_FUNCTION_WITH_LOCALS(QuoteExactQuInput)
+	{
 		output.assetAmountOut = -1;
 
 		if (input.quAmountIn <= 0) {
@@ -442,7 +447,7 @@ protected:
 			locals.i3,
 			locals.i4
 		);
-	_
+	}
 
 	struct QuoteExactQuOutput_locals{
 		id poolID;
@@ -454,6 +459,7 @@ protected:
 	};
 
 	PUBLIC_FUNCTION_WITH_LOCALS(QuoteExactQuOutput)
+	{
 		output.assetAmountIn = -1;
 
 		if (input.quAmountOut <= 0) {
@@ -496,7 +502,7 @@ protected:
 			locals.i2,
 			locals.i3
 		);
-	_
+	}
 
 	struct QuoteExactAssetInput_locals{
 		id poolID;
@@ -509,6 +515,7 @@ protected:
 	};
 
 	PUBLIC_FUNCTION_WITH_LOCALS(QuoteExactAssetInput)
+	{
 		output.quAmountOut = -1;
 
 		if (input.assetAmountIn <= 0) {
@@ -559,7 +566,7 @@ protected:
 			uint128(QSWAP_SWAP_FEE_BASE - state.swapFeeRate) / 
 			uint128(QSWAP_SWAP_FEE_BASE)
 		).low);
-	_
+	}
 
 	struct QuoteExactAssetOutput_locals{
 		id poolID;
@@ -571,6 +578,7 @@ protected:
 	};
 
 	PUBLIC_FUNCTION_WITH_LOCALS(QuoteExactAssetOutput)
+	{
 		output.quAmountIn = -1;
 
 		if (input.assetAmountOut <= 0) {
@@ -611,7 +619,7 @@ protected:
 			state.swapFeeRate,
 			locals.i1
 		);
-	_
+	}
 
 //
 // procedure
@@ -622,6 +630,7 @@ protected:
 	};
 
 	PUBLIC_PROCEDURE_WITH_LOCALS(IssueAsset)
+	{
 		CALL_OTHER_CONTRACT_FUNCTION(QX, Fees, locals.feesInput, locals.feesOutput);
 
 		output.issuedNumberOfShares = 0;
@@ -663,7 +672,7 @@ protected:
 			qpi.transfer(qpi.invocator(), qpi.invocationReward() - locals.feesOutput.assetIssuanceFee);
 			state.protocolEarnedFee += locals.feesOutput.assetIssuanceFee;
 		}
-	_
+	}
 
 	struct CreatePool_locals{
 		id poolID;
@@ -679,6 +688,7 @@ protected:
 	// create uniswap like pool
 	// TODO: reject if there is no shares avaliabe shares in current contract, e.g. asset is issue in contract qx
 	PUBLIC_PROCEDURE_WITH_LOCALS(CreatePool)
+	{
 		output.success = false;
 
 		CALL_OTHER_CONTRACT_FUNCTION(QX, Fees, locals.feesInput, locals.feesOutput);
@@ -737,7 +747,7 @@ protected:
 		state.protocolEarnedFee += locals.poolCreationFee;
 
 		output.success = true;
-	_
+	}
 
 
 	struct AddLiqudity_locals
@@ -766,6 +776,7 @@ protected:
 	};
 
 	PUBLIC_PROCEDURE_WITH_LOCALS(AddLiqudity)
+	{
 		output.userIncreaseLiqudity = 0;
 		output.assetAmount = 0;
 		output.quAmount = 0;
@@ -1028,7 +1039,7 @@ protected:
 		if (qpi.invocationReward() > locals.quTransferAmount) {
 			qpi.transfer(qpi.invocator(), qpi.invocationReward() - locals.quTransferAmount);
 		}
-	_
+	}
 
 	struct RemoveLiqudity_locals {
 		id poolID;
@@ -1043,6 +1054,7 @@ protected:
 	};
 
 	PUBLIC_PROCEDURE_WITH_LOCALS(RemoveLiqudity)
+	{
 		output.quAmount = 0;
 		output.assetAmount = 0;
 
@@ -1144,7 +1156,7 @@ protected:
 		locals.poolBasicState.reservedAssetAmount -= locals.burnAssetAmount;
 
 		state.mPoolBasicStates.set(locals.poolSlot, locals.poolBasicState);
-	_
+	}
 
 	struct SwapExactQuForAsset_locals{
 		id poolID;
@@ -1162,6 +1174,7 @@ protected:
 	// given an input qu amountIn, only execute swap in case (amountOut >= amountOutMin)
 	// https://docs.uniswap.org/contracts/v2/reference/smart-contracts/router-02#swapexacttokensfortokens
 	PUBLIC_PROCEDURE_WITH_LOCALS(SwapExactQuForAsset)
+	{
 		output.assetAmountOut = 0;
 
 		// require input qu > 0
@@ -1254,7 +1267,7 @@ protected:
 		locals.poolBasicState.reservedQuAmount += locals.quAmountIn - locals.feeToProtocol;
 		locals.poolBasicState.reservedAssetAmount -= locals.assetAmountOut;
 		state.mPoolBasicStates.set(locals.poolSlot, locals.poolBasicState);
-	_
+	}
 
 	struct SwapQuForExactAsset_locals{
 		id poolID;
@@ -1270,6 +1283,7 @@ protected:
 
 	// https://docs.uniswap.org/contracts/v2/reference/smart-contracts/router-02#swaptokensforexacttokens
 	PUBLIC_PROCEDURE_WITH_LOCALS(SwapQuForExactAsset)
+	{
 		output.quAmountIn = 0;
 
 		// require input qu amount > 0
@@ -1376,7 +1390,7 @@ protected:
 		locals.poolBasicState.reservedAssetAmount -= input.assetAmountOut;
 
 		state.mPoolBasicStates.set(locals.poolSlot, locals.poolBasicState);
-	_
+	}
 
 	struct SwapExactAssetForQu_locals{
 		id poolID;
@@ -1394,6 +1408,7 @@ protected:
 
 	// given an amount of asset swap in, only execute swaping if quAmountOut >= input.amountOutMin
 	PUBLIC_PROCEDURE_WITH_LOCALS(SwapExactAssetForQu)
+	{
 		output.quAmountOut = 0;
 		if (qpi.invocationReward() > 0) {
 			qpi.transfer(qpi.invocator(), qpi.invocationReward());
@@ -1518,7 +1533,7 @@ protected:
 		state.protocolEarnedFee += locals.protocolFee;
 
 		state.mPoolBasicStates.set(locals.poolSlot, locals.poolBasicState);
-	_
+	}
 
 	struct SwapAssetForExactQu_locals{
 		id poolID;
@@ -1534,6 +1549,7 @@ protected:
 	};
 
 	PUBLIC_PROCEDURE_WITH_LOCALS(SwapAssetForExactQu)
+	{
 		output.assetAmountIn = 0;
 		if (qpi.invocationReward() > 0) {
 			qpi.transfer(qpi.invocator(), qpi.invocationReward());
@@ -1654,7 +1670,7 @@ protected:
 		state.protocolEarnedFee += locals.protocolFee;
 
 		state.mPoolBasicStates.set(locals.poolSlot, locals.poolBasicState);
-	_
+	}
 
 	struct TransferShareOwnershipAndPossession_locals {
 		QX::Fees_input feesInput;
@@ -1662,6 +1678,7 @@ protected:
 	};
 
 	PUBLIC_PROCEDURE_WITH_LOCALS(TransferShareOwnershipAndPossession)
+	{
 		output.transferredAmount = 0;
 
 		CALL_OTHER_CONTRACT_FUNCTION(QX, Fees, locals.feesInput, locals.feesOutput);
@@ -1709,9 +1726,10 @@ protected:
 		}
 
 		state.protocolEarnedFee += locals.feesOutput.transferFee;
-	_
+	}
 
-	REGISTER_USER_FUNCTIONS_AND_PROCEDURES
+	REGISTER_USER_FUNCTIONS_AND_PROCEDURES()
+	{
 		// functions
 		REGISTER_USER_FUNCTION(Fees, 1);
 		REGISTER_USER_FUNCTION(GetPoolBasicState, 2);
@@ -1731,15 +1749,17 @@ protected:
 		REGISTER_USER_PROCEDURE(SwapQuForExactAsset, 7);
 		REGISTER_USER_PROCEDURE(SwapExactAssetForQu, 8);
 		REGISTER_USER_PROCEDURE(SwapAssetForExactQu, 9);
-	_
+	}
 
-	INITIALIZE
+	INITIALIZE()
+	{
 		state.swapFeeRate = 30; 	// 0.3%, must less than 10000
 		state.protocolFeeRate = 20; // 20%, must less than 100
 		state.poolCreationRate = 20; // 20%, must less than 100
-	_
+	}
 
-	END_TICK
+	END_TICK()
+	{
 		if ((div((state.protocolEarnedFee - state.distributedAmount), 676ULL) > 0) && (state.protocolEarnedFee > state.distributedAmount))
 		{
 			if (qpi.distributeDividends(div((state.protocolEarnedFee - state.distributedAmount), 676ULL)))
@@ -1747,5 +1767,5 @@ protected:
 				state.distributedAmount += div((state.protocolEarnedFee- state.distributedAmount), 676ULL) * NUMBER_OF_COMPUTORS;
 			}
 		}
-	_
+	}
 };
