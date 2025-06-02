@@ -1,6 +1,7 @@
+import { Buffer } from 'buffer';
 import { queryContract, executeTransaction } from './contractApi';
 import { executeTransactionWithWallet } from './transactionApi';
-import { encodeParams } from './contractUtils';
+import { encodeParams, decodeContractResponse } from './contractUtils';
 
 const QSWAP_CONTRACT_INDEX = 13;
 const QSWAP_ADDRESS = "NAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAML";
@@ -25,11 +26,50 @@ const QSWAP_SWAP_QU_FOR_EXACT_ASSET = 7;
 const QSWAP_SWAP_EXACT_ASSET_FOR_QU = 8;
 const QSWAP_SWAP_ASSET_FOR_EXACT_QU = 9;
 
+// Custom query function for debugging
+async function queryQswapContract(httpEndpoint, functionIndex, params = {}, inputFields = [], outputDefinition = null) {
+  console.log(`[QSwap] Querying function ${functionIndex} on contract ${QSWAP_CONTRACT_INDEX}`);
+  
+  // Make the raw API call to see what we get
+  try {
+    const encodedData = encodeParams(params, inputFields);
+    const inputSize = encodedData ? Buffer.from(encodedData, 'base64').length : 0;
+    
+    const response = await fetch(`${httpEndpoint}/v1/querySmartContract`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contractIndex: QSWAP_CONTRACT_INDEX,
+        inputType: functionIndex,
+        inputSize: inputSize,
+        requestData: encodedData || ''
+      })
+    });
+    
+    const json = await response.json();
+    console.log('[QSwap] Raw API response:', json);
+    
+    if (json.responseData) {
+      const decoded = decodeContractResponse(json.responseData, outputDefinition?.outputs || []);
+      console.log('[QSwap] Decoded response:', decoded);
+      return decoded;
+    } else {
+      console.warn('[QSwap] No responseData in API response');
+      return { success: false, error: 'No responseData in API response' };
+    }
+  } catch (error) {
+    console.error('[QSwap] Query error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 // View Functions
 export async function getQswapFees(httpEndpoint) {
-  const result = await queryContract(
+  // QSwap Fees has no input parameters
+  const result = await queryQswapContract(
     httpEndpoint,
-    QSWAP_CONTRACT_INDEX,
     QSWAP_GET_FEE,
     {},
     [],
@@ -39,18 +79,35 @@ export async function getQswapFees(httpEndpoint) {
         { name: 'assetIssuanceFee', type: 'uint32' },
         { name: 'poolCreationFee', type: 'uint32' },
         { name: 'transferFee', type: 'uint32' },
-        { name: 'swapFee', type: 'uint32' },
-        { name: 'protocolFee', type: 'uint32' }
+        { name: 'swapRate', type: 'uint32' },  // Changed from swapFee to swapRate
+        { name: 'protocolRate', type: 'uint32' }  // Changed from protocolFee to protocolRate
       ]
     }
   );
+  
+  console.log('QSwap Fees API Response:', result);
+  
+  // The queryContract already returns the decoded data in the correct format
+  // Just map the field names for UI consistency
+  if (result && result.success && result.decodedFields) {
+    return {
+      success: true,
+      decodedFields: {
+        assetIssuanceFee: result.decodedFields.assetIssuanceFee || 0,
+        poolCreationFee: result.decodedFields.poolCreationFee || 0,
+        transferFee: result.decodedFields.transferFee || 0,
+        swapFee: result.decodedFields.swapRate || 0,  // Map swapRate to swapFee for UI
+        protocolFee: result.decodedFields.protocolRate || 0  // Map protocolRate to protocolFee for UI
+      }
+    };
+  }
+  
   return result;
 }
 
 export async function getPoolBasicState(httpEndpoint, assetIssuer, assetName) {
-  const result = await queryContract(
+  const result = await queryQswapContract(
     httpEndpoint,
-    QSWAP_CONTRACT_INDEX,
     QSWAP_GET_POOL_BASIC_STATE,
     { assetIssuer, assetName },
     [
@@ -71,9 +128,8 @@ export async function getPoolBasicState(httpEndpoint, assetIssuer, assetName) {
 }
 
 export async function getLiquidityOf(httpEndpoint, assetIssuer, assetName, account) {
-  const result = await queryContract(
+  const result = await queryQswapContract(
     httpEndpoint,
-    QSWAP_CONTRACT_INDEX,
     QSWAP_GET_LIQUIDITY_OF,
     { assetIssuer, assetName, account },
     [
@@ -93,9 +149,8 @@ export async function getLiquidityOf(httpEndpoint, assetIssuer, assetName, accou
 
 // Quote functions
 export async function quoteExactQuInput(httpEndpoint, assetIssuer, assetName, quAmountIn) {
-  const result = await queryContract(
+  const result = await queryQswapContract(
     httpEndpoint,
-    QSWAP_CONTRACT_INDEX,
     QSWAP_QUOTE_EXACT_QU_INPUT,
     { assetIssuer, assetName, quAmountIn },
     [
@@ -114,9 +169,8 @@ export async function quoteExactQuInput(httpEndpoint, assetIssuer, assetName, qu
 }
 
 export async function quoteExactQuOutput(httpEndpoint, assetIssuer, assetName, quAmountOut) {
-  const result = await queryContract(
+  const result = await queryQswapContract(
     httpEndpoint,
-    QSWAP_CONTRACT_INDEX,
     QSWAP_QUOTE_EXACT_QU_OUTPUT,
     { assetIssuer, assetName, quAmountOut },
     [
@@ -135,9 +189,8 @@ export async function quoteExactQuOutput(httpEndpoint, assetIssuer, assetName, q
 }
 
 export async function quoteExactAssetInput(httpEndpoint, assetIssuer, assetName, assetAmountIn) {
-  const result = await queryContract(
+  const result = await queryQswapContract(
     httpEndpoint,
-    QSWAP_CONTRACT_INDEX,
     QSWAP_QUOTE_EXACT_ASSET_INPUT,
     { assetIssuer, assetName, assetAmountIn },
     [
@@ -156,9 +209,8 @@ export async function quoteExactAssetInput(httpEndpoint, assetIssuer, assetName,
 }
 
 export async function quoteExactAssetOutput(httpEndpoint, assetIssuer, assetName, assetAmountOut) {
-  const result = await queryContract(
+  const result = await queryQswapContract(
     httpEndpoint,
-    QSWAP_CONTRACT_INDEX,
     QSWAP_QUOTE_EXACT_ASSET_OUTPUT,
     { assetIssuer, assetName, assetAmountOut },
     [
@@ -310,22 +362,32 @@ export async function transferShareOwnershipAndPossession(qubicConnect, assetIss
 
 // Helper function to convert asset name string to uint64
 export function assetNameToUint64(assetName) {
-  // Convert string to bytes and pack into uint64
+  // In the C++ code, asset names are stored as 8-byte char arrays
+  // We need to convert the string to match this format
+  const paddedName = assetName.padEnd(8, '\0').substring(0, 8);
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(paddedName);
+  
+  // Pack bytes into uint64 (little-endian)
   let value = 0n;
-  for (let i = 0; i < Math.min(assetName.length, 8); i++) {
-    value |= BigInt(assetName.charCodeAt(i)) << BigInt(i * 8);
+  for (let i = 0; i < 8; i++) {
+    value |= BigInt(bytes[i] || 0) << BigInt(i * 8);
   }
+  
   return value.toString();
 }
 
 // Helper to convert uint64 back to asset name string
 export function uint64ToAssetName(uint64Value) {
   const value = BigInt(uint64Value);
-  let name = '';
+  const bytes = [];
+  
   for (let i = 0; i < 8; i++) {
     const byte = Number((value >> BigInt(i * 8)) & 0xFFn);
     if (byte === 0) break;
-    name += String.fromCharCode(byte);
+    bytes.push(byte);
   }
-  return name;
+  
+  const decoder = new TextDecoder();
+  return decoder.decode(new Uint8Array(bytes)).trim();
 } 

@@ -2,34 +2,37 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
+  background-color: #1a1a1a;
+  color: #e0e0e0;
 }
 
 .qswap-container h1 {
-  color: #333;
+  color: #ffffff;
   margin-bottom: 2rem;
   text-align: center;
 }
 
 .warning-box {
-  background-color: #fff3cd;
-  border: 1px solid #ffeaa7;
+  background-color: #2a2a00;
+  border: 1px solid #ffeb3b;
   border-radius: 8px;
   padding: 1rem;
   margin-bottom: 2rem;
   text-align: center;
-  color: #856404;
+  color: #ffeb3b;
 }
 
 .fees-info {
-  background-color: #f8f9fa;
+  background-color: #2a2a2a;
   border-radius: 8px;
   padding: 1.5rem;
   margin-bottom: 2rem;
+  border: 1px solid #444;
 }
 
 .fees-info h3 {
   margin-top: 0;
-  color: #333;
+  color: #ffffff;
 }
 
 .fee-grid {
@@ -40,17 +43,28 @@
 }
 
 .fee-grid > div {
-  background-color: #fff;
+  background-color: #333333;
   padding: 0.75rem;
   border-radius: 4px;
-  border: 1px solid #dee2e6;
+  border: 1px solid #555;
+  color: #e0e0e0;
+}
+
+.fee-error {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background-color: #3a2a2a;
+  border: 1px solid #ff6b6b;
+  border-radius: 4px;
+  color: #ff9999;
+  text-align: center;
 }
 
 .tabs {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 2rem;
-  border-bottom: 2px solid #dee2e6;
+  border-bottom: 2px solid #444;
 }
 
 .tabs button {
@@ -59,19 +73,19 @@
   padding: 0.75rem 1.5rem;
   cursor: pointer;
   font-size: 1rem;
-  color: #666;
+  color: #999;
   transition: all 0.3s ease;
   border-bottom: 3px solid transparent;
   margin-bottom: -2px;
 }
 
 .tabs button:hover {
-  color: #333;
+  color: #fff;
 }
 
 .tabs button.active {
-  color: #007bff;
-  border-bottom-color: #007bff;
+  color: #4a9eff;
+  border-bottom-color: #4a9eff;
 }
 
 .message {
@@ -82,28 +96,29 @@
 }
 
 .message.success {
-  background-color: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
+  background-color: #1b4332;
+  color: #4ade80;
+  border: 1px solid #22c55e;
 }
 
 .message.error {
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
+  background-color: #450a0a;
+  color: #f87171;
+  border: 1px solid #dc2626;
 }
 
 .tab-content {
-  background-color: #fff;
+  background-color: #2a2a2a;
   border-radius: 8px;
   padding: 2rem;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  border: 1px solid #444;
 }
 
 /* Pools Section */
 .pools-section h2 {
   margin-top: 0;
-  color: #333;
+  color: #ffffff;
 }
 
 .pool-search {
@@ -117,14 +132,22 @@
   flex: 1;
   min-width: 200px;
   padding: 0.75rem;
-  border: 1px solid #ced4da;
+  border: 1px solid #555;
   border-radius: 4px;
   font-size: 1rem;
+  background-color: #1a1a1a;
+  color: #e0e0e0;
+}
+
+.pool-search input:focus {
+  outline: none;
+  border-color: #4a9eff;
+  box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
 }
 
 .pool-search button {
   padding: 0.75rem 1.5rem;
-  background-color: #007bff;
+  background-color: #4a9eff;
   color: white;
   border: none;
   border-radius: 4px;
@@ -134,24 +157,25 @@
 }
 
 .pool-search button:hover:not(:disabled) {
-  background-color: #0056b3;
+  background-color: #357abd;
 }
 
 .pool-search button:disabled {
-  background-color: #6c757d;
+  background-color: #4a4a4a;
   cursor: not-allowed;
 }
 
 .pool-info {
-  background-color: #f8f9fa;
+  background-color: #333333;
   padding: 1.5rem;
   border-radius: 8px;
   margin-top: 1rem;
+  border: 1px solid #555;
 }
 
 .pool-info h3 {
   margin-top: 0;
-  color: #333;
+  color: #ffffff;
 }
 
 .info-grid {
@@ -162,10 +186,11 @@
 }
 
 .info-grid > div {
-  background-color: #fff;
+  background-color: #1a1a1a;
   padding: 1rem;
   border-radius: 4px;
-  border: 1px solid #dee2e6;
+  border: 1px solid #444;
+  color: #e0e0e0;
 }
 
 /* Liquidity Section */
@@ -175,22 +200,30 @@
 
 .liquidity-section h3 {
   margin-bottom: 1.5rem;
-  color: #333;
+  color: #ffffff;
 }
 
 .liquidity-section input {
   width: 100%;
   padding: 0.75rem;
   margin-bottom: 1rem;
-  border: 1px solid #ced4da;
+  border: 1px solid #555;
   border-radius: 4px;
   font-size: 1rem;
+  background-color: #1a1a1a;
+  color: #e0e0e0;
+}
+
+.liquidity-section input:focus {
+  outline: none;
+  border-color: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
 }
 
 .liquidity-section button {
   width: 100%;
   padding: 0.75rem;
-  background-color: #28a745;
+  background-color: #22c55e;
   color: white;
   border: none;
   border-radius: 4px;
@@ -200,7 +233,7 @@
 }
 
 .liquidity-section button:hover:not(:disabled) {
-  background-color: #218838;
+  background-color: #16a34a;
 }
 
 /* Swap Section */
@@ -219,21 +252,30 @@
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
+  color: #e0e0e0;
 }
 
 .swap-form input[type="number"] {
   width: 100%;
   padding: 0.75rem;
   margin-bottom: 1rem;
-  border: 1px solid #ced4da;
+  border: 1px solid #555;
   border-radius: 4px;
   font-size: 1rem;
+  background-color: #1a1a1a;
+  color: #e0e0e0;
+}
+
+.swap-form input[type="number"]:focus {
+  outline: none;
+  border-color: #4a9eff;
+  box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
 }
 
 .swap-form button {
   width: 100%;
   padding: 0.75rem;
-  background-color: #007bff;
+  background-color: #4a9eff;
   color: white;
   border: none;
   border-radius: 4px;
@@ -244,19 +286,21 @@
 }
 
 .swap-form button:hover:not(:disabled) {
-  background-color: #0056b3;
+  background-color: #357abd;
 }
 
 .quote-info {
-  background-color: #f8f9fa;
+  background-color: #333333;
   padding: 1.5rem;
   border-radius: 8px;
   margin-top: 1rem;
+  border: 1px solid #555;
 }
 
 .quote-info > div {
   margin-bottom: 1rem;
   font-weight: 500;
+  color: #e0e0e0;
 }
 
 /* Issue Section */
@@ -268,15 +312,23 @@
   width: 100%;
   padding: 0.75rem;
   margin-bottom: 1rem;
-  border: 1px solid #ced4da;
+  border: 1px solid #555;
   border-radius: 4px;
   font-size: 1rem;
+  background-color: #1a1a1a;
+  color: #e0e0e0;
+}
+
+.issue-section input:focus {
+  outline: none;
+  border-color: #06b6d4;
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2);
 }
 
 .issue-section button {
   width: 100%;
   padding: 0.75rem;
-  background-color: #17a2b8;
+  background-color: #06b6d4;
   color: white;
   border: none;
   border-radius: 4px;
@@ -286,7 +338,7 @@
 }
 
 .issue-section button:hover:not(:disabled) {
-  background-color: #138496;
+  background-color: #0891b2;
 }
 
 button:disabled {

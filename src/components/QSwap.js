@@ -55,6 +55,15 @@ function QSwap() {
     quote: null
   });
 
+  // Helper function to format endpoint
+  const formatEndpoint = (endpoint) => {
+    if (!endpoint) return null;
+    if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+      return 'https://' + endpoint;
+    }
+    return endpoint;
+  };
+
   useEffect(() => {
     if (httpEndpoint) {
       loadFees();
@@ -63,10 +72,30 @@ function QSwap() {
 
   const loadFees = async () => {
     try {
-      const feeData = await getQswapFees(httpEndpoint);
-      setFees(feeData);
+      const endpoint = formatEndpoint(httpEndpoint);
+      if (!endpoint) {
+        setMessage('No endpoint configured');
+        return;
+      }
+      
+      console.log('Loading fees from endpoint:', endpoint);
+      const feeData = await getQswapFees(endpoint);
+      console.log('Raw fee data:', feeData);
+      
+      // Check if the response has the expected structure
+      if (feeData && feeData.success && feeData.decodedFields) {
+        setFees(feeData.decodedFields);
+        setMessage(''); // Clear any error messages
+      } else if (feeData && feeData.success === false) {
+        console.error('Failed to load fees:', feeData.error);
+        setMessage('Failed to load protocol fees: ' + feeData.error);
+      } else {
+        console.warn('Unexpected fee data format:', feeData);
+        setMessage('Unable to load fees - unexpected response format');
+      }
     } catch (error) {
       console.error('Failed to load fees:', error);
+      setMessage('Error loading protocol fees: ' + error.message);
     }
   };
 
@@ -79,20 +108,34 @@ function QSwap() {
     setLoading(true);
     try {
       const assetNameUint64 = assetNameToUint64(assetName);
+      console.log('Loading pool for:', { assetIssuer, assetName, assetNameUint64 });
+      
       const info = await getPoolBasicState(httpEndpoint, assetIssuer, assetNameUint64);
-      setPoolInfo(info);
+      console.log('Pool info response:', info);
       
-      if (isConnected && info.poolExists) {
-        const liquidity = await getLiquidityOf(
-          httpEndpoint, 
-          assetIssuer, 
-          assetNameUint64, 
-          qubicConnect.wallet.publicKey
-        );
-        setUserLiquidity(liquidity);
+      if (info && info.success && info.decodedFields) {
+        setPoolInfo(info.decodedFields);
+        
+        // Load user liquidity if connected and pool exists
+        if (isConnected && info.decodedFields.poolExists > 0) {
+          const liquidity = await getLiquidityOf(
+            httpEndpoint, 
+            assetIssuer, 
+            assetNameUint64, 
+            qubicConnect.wallet.publicKey
+          );
+          console.log('Liquidity response:', liquidity);
+          
+          if (liquidity && liquidity.success && liquidity.decodedFields) {
+            setUserLiquidity(liquidity.decodedFields);
+          }
+        }
+        
+        setMessage('Pool info loaded');
+      } else if (info && info.success === false) {
+        setMessage(`Error: ${info.error}`);
+        setPoolInfo(null);
       }
-      
-      setMessage('Pool info loaded');
     } catch (error) {
       setMessage(`Error: ${error.message}`);
       setPoolInfo(null);
@@ -280,15 +323,87 @@ function QSwap() {
         </div>
       )}
       
-      {fees && (
+      {/* Debug section - remove in production */}
+      <div style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: '#333', borderRadius: '8px' }}>
+        <button 
+          onClick={async () => {
+            try {
+              console.log('Testing QSwap API with endpoint:', httpEndpoint);
+              const response = await fetch(`${httpEndpoint}/v1/querySmartContract`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  contractIndex: 13,
+                  inputType: 1,
+                  inputSize: 0,
+                  requestData: ''
+                })
+              });
+              const data = await response.json();
+              console.log('Raw API Response:', data);
+              
+              // Decode the base64 response
+              if (data.responseData) {
+                const binaryString = atob(data.responseData);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                  bytes[i] = binaryString.charCodeAt(i);
+                }
+                
+                // Parse as 5 uint32 values (4 bytes each)
+                const dv = new DataView(bytes.buffer);
+                const decoded = {
+                  assetIssuanceFee: dv.getUint32(0, true),
+                  poolCreationFee: dv.getUint32(4, true),
+                  transferFee: dv.getUint32(8, true),
+                  swapRate: dv.getUint32(12, true),
+                  protocolRate: dv.getUint32(16, true)
+                };
+                console.log('Decoded fees:', decoded);
+                alert('Check console for decoded fees');
+              }
+            } catch (err) {
+              console.error('Direct API test failed:', err);
+              alert('API test failed: ' + err.message);
+            }
+          }}
+          style={{ marginRight: '1rem' }}
+        >
+          Test Direct API
+        </button>
+        <button onClick={loadFees}>
+          Reload Fees
+        </button>
+        <span style={{ marginLeft: '1rem', color: '#888' }}>
+          Endpoint: {httpEndpoint || 'Not set'}
+        </span>
+      </div>
+      
+      {!fees ? (
         <div className="fees-info">
           <h3>Protocol Fees</h3>
           <div className="fee-grid">
-            <div>Asset Issuance: {fees.assetIssuanceFee} QU</div>
-            <div>Pool Creation: {fees.poolCreationFee} QU</div>
-            <div>Transfer Fee: {fees.transferFee} QU</div>
-            <div>Swap Fee: {fees.swapFee / 10000}%</div>
-            <div>Protocol Fee: {fees.protocolFee / 100}%</div>
+            <div>Asset Issuance: Loading...</div>
+            <div>Pool Creation: Loading...</div>
+            <div>Transfer Fee: Loading...</div>
+            <div>Swap Fee: Loading...</div>
+            <div>Protocol Fee: Loading...</div>
+          </div>
+          {message && message.includes('fees') && (
+            <div className="fee-error">{message}</div>
+          )}
+        </div>
+      ) : (
+        <div className="fees-info">
+          <h3>Protocol Fees</h3>
+          <div className="fee-grid">
+            <div>Asset Issuance: {fees.assetIssuanceFee ? fees.assetIssuanceFee.toLocaleString() : '0'} QU</div>
+            <div>Pool Creation: {fees.poolCreationFee ? fees.poolCreationFee.toLocaleString() : '0'} QU</div>
+            <div>Transfer Fee: {fees.transferFee ? fees.transferFee.toLocaleString() : '0'} QU</div>
+            <div>Swap Fee: {fees.swapFee ? (fees.swapFee / 10000).toFixed(2) : '0.00'}%</div>
+            <div>Protocol Fee: {fees.protocolFee ? (fees.protocolFee / 100).toFixed(2) : '0.00'}%</div>
           </div>
         </div>
       )}
@@ -347,7 +462,7 @@ function QSwap() {
               <button onClick={loadPoolInfo} disabled={loading}>
                 Load Pool Info
               </button>
-              {poolInfo && !poolInfo.poolExists && (
+              {poolInfo && (!poolInfo.poolExists || poolInfo.poolExists === 0 || poolInfo.poolExists === '0') && (
                 <button onClick={handleCreatePool} disabled={loading}>
                   Create Pool
                 </button>
@@ -356,15 +471,15 @@ function QSwap() {
             
             {poolInfo && (
               <div className="pool-info">
-                {poolInfo.poolExists ? (
+                {poolInfo.poolExists && poolInfo.poolExists > 0 ? (
                   <>
                     <h3>Pool Details</h3>
                     <div className="info-grid">
-                      <div>QU Reserve: {poolInfo.reservedQuAmount}</div>
-                      <div>Asset Reserve: {poolInfo.reservedAssetAmount}</div>
-                      <div>Total Liquidity: {poolInfo.totalLiquidity}</div>
+                      <div>QU Reserve: {poolInfo.reservedQuAmount ? poolInfo.reservedQuAmount.toLocaleString() : '0'}</div>
+                      <div>Asset Reserve: {poolInfo.reservedAssetAmount ? poolInfo.reservedAssetAmount.toLocaleString() : '0'}</div>
+                      <div>Total Liquidity: {poolInfo.totalLiquidity ? poolInfo.totalLiquidity.toLocaleString() : '0'}</div>
                       {userLiquidity && (
-                        <div>Your Liquidity: {userLiquidity.liquidity}</div>
+                        <div>Your Liquidity: {userLiquidity.liquidity ? userLiquidity.liquidity.toLocaleString() : '0'}</div>
                       )}
                     </div>
                   </>
@@ -379,7 +494,7 @@ function QSwap() {
         {activeTab === 'liquidity' && (
           <div className="liquidity-section">
             <h2>Manage Liquidity</h2>
-            {poolInfo && poolInfo.poolExists ? (
+            {poolInfo && poolInfo.poolExists && poolInfo.poolExists > 0 ? (
               <form onSubmit={handleAddLiquidity}>
                 <h3>Add Liquidity</h3>
                 <input
@@ -421,7 +536,7 @@ function QSwap() {
         {activeTab === 'swap' && (
           <div className="swap-section">
             <h2>Swap Tokens</h2>
-            {poolInfo && poolInfo.poolExists ? (
+            {poolInfo && poolInfo.poolExists && poolInfo.poolExists > 0 ? (
               <div className="swap-form">
                 <div className="swap-type">
                   <label>
