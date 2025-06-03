@@ -1,0 +1,32 @@
+[
+  {
+    "id": "pool_1",
+    "assetName": "QSWAP0",
+    "assetIssuer": "QFWAPCCDUOMNYCVXNGXUJQQUHPEBOUTCWXPHGCNIADQIOAJAYACSYEEDLWWA",
+    "description": "Test coin for demonstrating QSwap functionality",
+    "status": "active",
+    "estimatedLiquidity": "500000000",
+    "addedBy": "QForge Team",
+    "dateAdded": "2024-01-15"
+  },
+  {
+    "id": "pool_2", 
+    "assetName": "GAMETKN",
+    "assetIssuer": "BBBEFABIHWRWBAIJQJPWTIIQBUCBHBVWYYGFFJADQBKWFBORRVXWSCVBUKWL",
+    "description": "Gaming token for in-game purchases and rewards",
+    "status": "active",
+    "estimatedLiquidity": "1200000000",
+    "addedBy": "GameDev Studio",
+    "dateAdded": "2024-01-20"
+  },
+  {
+    "id": "pool_3",
+    "assetName": "UTILITY",
+    "assetIssuer": "CCCEFABIHWRWBAIJQJPWTIIQBUCBHBVWYYGFFJADQBKWFBORRVXWSCVBUKWL", 
+    "description": "Utility token for decentralized services",
+    "status": "active",
+    "estimatedLiquidity": "800000000",
+    "addedBy": "DeFi Collective",
+    "dateAdded": "2024-01-25"
+  }
+] 

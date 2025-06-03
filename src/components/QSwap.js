@@ -15,6 +15,7 @@ import {
   assetNameToUint64,
   uint64ToAssetName
 } from '../utils/qswapApi';
+import existingPoolsData from '../data/existingPools.json';
 import './QSwap.css';
 
 function QSwap() {
@@ -23,7 +24,9 @@ function QSwap() {
   const [fees, setFees] = useState(null);
   const [selectedPool, setSelectedPool] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingPoolId, setLoadingPoolId] = useState(null);
   const [message, setMessage] = useState('');
+  const [existingPools, setExistingPools] = useState(existingPoolsData);
   
   // Form states
   const [assetName, setAssetName] = useState('');
@@ -413,6 +416,57 @@ You can now create a pool for this asset!`);
     setLoading(false);
   };
 
+  const handleSelectExistingPool = async (pool) => {
+    setAssetName(pool.assetName);
+    setAssetIssuer(pool.assetIssuer);
+    setMessage(`Loading ${pool.assetName} pool data...`);
+    
+    // Set loading state for this specific pool
+    setLoadingPoolId(pool.id);
+    setLoading(true);
+    try {
+      const assetNameUint64 = assetNameToUint64(pool.assetName);
+      console.log('Loading pool for:', { assetIssuer: pool.assetIssuer, assetName: pool.assetName, assetNameUint64 });
+      
+      const info = await getPoolBasicState(httpEndpoint, pool.assetIssuer, assetNameUint64, qubicConnect?.qHelper);
+      console.log('Pool info response:', info);
+      
+      if (info && info.success && info.decodedFields) {
+        setPoolInfo(info.decodedFields);
+        
+        // Load user liquidity if connected and pool exists
+        if (isConnected && info.decodedFields.poolExists > 0) {
+          const liquidity = await getLiquidityOf(
+            httpEndpoint, 
+            pool.assetIssuer, 
+            assetNameUint64, 
+            qubicConnect.wallet.publicKey,
+            qubicConnect?.qHelper
+          );
+          console.log('Liquidity response:', liquidity);
+          
+          if (liquidity && liquidity.success && liquidity.decodedFields) {
+            setUserLiquidity(liquidity.decodedFields);
+          }
+        }
+        
+        if (info.decodedFields.poolExists > 0) {
+          setMessage(`✅ ${pool.assetName} pool loaded successfully! You can now add liquidity or swap tokens.`);
+        } else {
+          setMessage(`⚠️ ${pool.assetName} pool doesn't exist yet. You can create it using the button below.`);
+        }
+      } else if (info && info.success === false) {
+        setMessage(`❌ Error loading ${pool.assetName}: ${info.error}`);
+        setPoolInfo(null);
+      }
+    } catch (error) {
+      setMessage(`❌ Error loading ${pool.assetName}: ${error.message}`);
+      setPoolInfo(null);
+    }
+    setLoadingPoolId(null);
+    setLoading(false);
+  };
+
   return (
     <div className="qswap-container">
       <h1>QSwap DEX</h1>
@@ -494,36 +548,177 @@ You can now create a pool for this asset!`);
       <div className="tab-content">
         {activeTab === 'pools' && (
           <div className="pools-section">
-            <h2>Pool Information</h2>
-            <div className="pool-search">
-              <input
-                type="text"
-                placeholder="Asset Name (max 8 chars)"
-                value={assetName}
-                onChange={(e) => setAssetName(e.target.value)}
-                maxLength={8}
-              />
-              <input
-                type="text"
-                placeholder="Asset Issuer (60 char Qubic address)"
-                value={assetIssuer}
-                onChange={(e) => setAssetIssuer(e.target.value)}
-              />
-              <button onClick={loadPoolInfo} disabled={loading}>
-                Load Pool Info
-              </button>
-              {poolInfo && (!poolInfo.poolExists || poolInfo.poolExists === 0 || poolInfo.poolExists === '0') && (
-                <button onClick={handleCreatePool} disabled={loading}>
-                  Create Pool
+            <h2>Pool Information & Discovery</h2>
+            
+            {/* Existing/Community Pools Section */}
+            <div style={{ marginBottom: '2rem' }}>
+              <h3 style={{ color: '#ffffff', marginBottom: '1rem' }}>🏊 Popular Pools</h3>
+              <div style={{ 
+                background: '#1e3a8a', 
+                border: '1px solid #3b82f6', 
+                borderRadius: '8px', 
+                padding: '1rem', 
+                marginBottom: '1rem' 
+              }}>
+                <p style={{ margin: '0 0 0.5rem 0', color: '#93c5fd', fontSize: '0.9rem' }}>
+                  <strong>What are pools?</strong> Pools contain pairs of QU (Qubic's native currency) and other tokens. 
+                  They enable trading between QU and tokens, and let you earn fees by providing liquidity.
+                </p>
+                <p style={{ margin: '0', color: '#93c5fd', fontSize: '0.9rem' }}>
+                  💡 <strong>Want your pool listed?</strong> Contact us to add your pool to this list for easier discovery!
+                </p>
+              </div>
+              
+              <div className="existing-pools-grid" style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+                gap: '1rem',
+                marginBottom: '1.5rem'
+              }}>
+                {existingPools.map((pool) => (
+                  <div key={pool.id} style={{
+                    background: loadingPoolId === pool.id ? '#1e3a8a' : '#374151',
+                    border: loadingPoolId === pool.id ? '1px solid #61f0fe' : '1px solid #4b5563',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    cursor: loadingPoolId === pool.id ? 'wait' : 'pointer',
+                    transition: 'all 0.3s ease',
+                    opacity: loadingPoolId && loadingPoolId !== pool.id ? 0.5 : 1,
+                    pointerEvents: loadingPoolId ? 'none' : 'auto'
+                  }}
+                  onClick={() => !loadingPoolId && handleSelectExistingPool(pool)}
+                  onMouseEnter={(e) => {
+                    if (!loadingPoolId) {
+                      e.target.style.borderColor = '#61f0fe';
+                      e.target.style.transform = 'translateY(-2px)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!loadingPoolId) {
+                      e.target.style.borderColor = '#4b5563';
+                      e.target.style.transform = 'translateY(0)';
+                    }
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <h4 style={{ margin: '0', color: '#61f0fe', fontSize: '1.1rem' }}>
+                        {pool.assetName}
+                        {loadingPoolId === pool.id && (
+                          <span style={{ marginLeft: '0.5rem', fontSize: '0.8rem', color: '#93c5fd' }}>
+                            Loading...
+                          </span>
+                        )}
+                      </h4>
+                      <span style={{ 
+                        background: loadingPoolId === pool.id ? '#61f0fe' : '#10b981', 
+                        color: loadingPoolId === pool.id ? '#111827' : 'white', 
+                        padding: '0.25rem 0.5rem', 
+                        borderRadius: '4px', 
+                        fontSize: '0.75rem',
+                        fontWeight: 'bold'
+                      }}>
+                        {loadingPoolId === pool.id ? 'LOADING' : pool.status.toUpperCase()}
+                      </span>
+                    </div>
+                    <p style={{ margin: '0 0 0.5rem 0', color: '#d1d5db', fontSize: '0.9rem' }}>{pool.description}</p>
+                    <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
+                      <div>Added by: {pool.addedBy}</div>
+                      <div>Est. Liquidity: {parseInt(pool.estimatedLiquidity).toLocaleString()} QU</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Manual Pool Search Section */}
+            <div>
+              <h3 style={{ color: '#ffffff', marginBottom: '1rem' }}>🔍 Search Any Pool</h3>
+              <div style={{ 
+                background: '#1e3a8a', 
+                border: '1px solid #3b82f6', 
+                borderRadius: '8px', 
+                padding: '1rem', 
+                marginBottom: '1rem' 
+              }}>
+                <p style={{ margin: '0', color: '#93c5fd', fontSize: '0.9rem' }}>
+                  Know a specific pool? Enter the asset details below to load any pool on the network.
+                </p>
+              </div>
+              
+              <div className="pool-search">
+                <input
+                  type="text"
+                  placeholder="Asset Name (max 8 chars)"
+                  value={assetName}
+                  onChange={(e) => setAssetName(e.target.value)}
+                  maxLength={8}
+                />
+                <input
+                  type="text"
+                  placeholder="Asset Issuer (60 char Qubic address)"
+                  value={assetIssuer}
+                  onChange={(e) => setAssetIssuer(e.target.value)}
+                />
+                <button onClick={loadPoolInfo} disabled={loading}>
+                  {loading ? 'Loading...' : 'Load Pool Info'}
                 </button>
-              )}
+              </div>
+              
+              {/* Pool Actions Section */}
+              <div style={{ 
+                background: '#374151', 
+                border: '1px solid #4b5563', 
+                borderRadius: '8px', 
+                padding: '1rem', 
+                marginTop: '1rem',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '1rem'
+              }}>
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#ffffff', fontSize: '1rem' }}>🔄 Pool Actions</h4>
+                  <p style={{ margin: '0 0 1rem 0', color: '#9ca3af', fontSize: '0.85rem' }}>
+                    {assetName && assetIssuer ? 
+                      `Ready to work with ${assetName} pool` : 
+                      'Enter asset details above or select from popular pools'
+                    }
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <button 
+                    onClick={handleCreatePool} 
+                    disabled={loading || !assetName || !assetIssuer || !isConnected}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      background: !isConnected ? '#6b7280' : '#10b981',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: !isConnected || loading || !assetName || !assetIssuer ? 'not-allowed' : 'pointer',
+                      fontSize: '0.9rem',
+                      fontWeight: '500',
+                      opacity: !isConnected || loading || !assetName || !assetIssuer ? 0.6 : 1,
+                      transition: 'background-color 0.3s ease'
+                    }}
+                    title={!isConnected ? 'Connect wallet to create pools' : 
+                           (!assetName || !assetIssuer) ? 'Enter asset details first' : 
+                           'Create a new trading pool'}
+                  >
+                    {loading ? 'Creating...' : '+ Create Pool'}
+                  </button>
+                  {!isConnected && (
+                    <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
+                      (Connect wallet)
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
             
             {poolInfo && (
               <div className="pool-info">
                 {poolInfo.poolExists && poolInfo.poolExists > 0 ? (
                   <>
-                    <h3>Pool Details</h3>
+                    <h3>Pool Details for {assetName}</h3>
                     <div className="info-grid">
                       <div>QU Reserve: {poolInfo.reservedQuAmount ? poolInfo.reservedQuAmount.toLocaleString() : '0'}</div>
                       <div>Asset Reserve: {poolInfo.reservedAssetAmount ? poolInfo.reservedAssetAmount.toLocaleString() : '0'}</div>
@@ -544,41 +739,130 @@ You can now create a pool for this asset!`);
         {activeTab === 'liquidity' && (
           <div className="liquidity-section">
             <h2>Manage Liquidity</h2>
+            
+            {/* Liquidity Explanation */}
+            <div style={{ 
+              background: '#1e3a8a', 
+              border: '1px solid #3b82f6', 
+              borderRadius: '8px', 
+              padding: '1.5rem', 
+              marginBottom: '2rem' 
+            }}>
+              <h3 style={{ margin: '0 0 1rem 0', color: '#93c5fd' }}>💧 What is Liquidity?</h3>
+              <div style={{ color: '#93c5fd', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                <p style={{ margin: '0 0 1rem 0' }}>
+                  <strong>Liquidity</strong> means putting your QU and tokens into a pool so others can trade. 
+                  When you add liquidity, you become a "liquidity provider" and earn fees from every trade!
+                </p>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem', margin: '1rem 0' }}>
+                  <div style={{ background: '#064e3b', padding: '1rem', borderRadius: '6px', border: '1px solid #059669' }}>
+                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#6ee7b7' }}>✅ Benefits</h4>
+                    <ul style={{ margin: '0', paddingLeft: '1.2rem', color: '#a7f3d0' }}>
+                      <li>Earn trading fees (passive income)</li>
+                      <li>Support the ecosystem</li>
+                      <li>Help enable trading for others</li>
+                    </ul>
+                  </div>
+                  
+                  <div style={{ background: '#7f1d1d', padding: '1rem', borderRadius: '6px', border: '1px solid #dc2626' }}>
+                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#fca5a5' }}>⚠️ Risks</h4>
+                    <ul style={{ margin: '0', paddingLeft: '1.2rem', color: '#fbb' }}>
+                      <li>Impermanent loss (if prices change)</li>
+                      <li>Both assets are locked together</li>
+                      <li>Can't withdraw only one asset type</li>
+                    </ul>
+                  </div>
+                </div>
+                
+                <p style={{ margin: '1rem 0 0 0', fontSize: '0.85rem', fontStyle: 'italic' }}>
+                  💡 <strong>How it works:</strong> You deposit equal values of QU and tokens. 
+                  The pool gives you LP (Liquidity Provider) tokens representing your share. 
+                  When you want to exit, you trade back your LP tokens for your portion of the pool.
+                </p>
+              </div>
+            </div>
+
             {poolInfo && poolInfo.poolExists && poolInfo.poolExists > 0 ? (
-              <form onSubmit={handleAddLiquidity}>
-                <h3>Add Liquidity</h3>
-                <input
-                  type="number"
-                  placeholder="QU Amount Desired"
-                  value={liquidityForm.quAmountDesired}
-                  onChange={(e) => setLiquidityForm({...liquidityForm, quAmountDesired: e.target.value})}
-                  required
-                />
-                <input
-                  type="number"
-                  placeholder="Asset Amount Desired"
-                  value={liquidityForm.assetAmountDesired}
-                  onChange={(e) => setLiquidityForm({...liquidityForm, assetAmountDesired: e.target.value})}
-                  required
-                />
-                <input
-                  type="number"
-                  placeholder="QU Amount Min"
-                  value={liquidityForm.quAmountMin}
-                  onChange={(e) => setLiquidityForm({...liquidityForm, quAmountMin: e.target.value})}
-                  required
-                />
-                <input
-                  type="number"
-                  placeholder="Asset Amount Min"
-                  value={liquidityForm.assetAmountMin}
-                  onChange={(e) => setLiquidityForm({...liquidityForm, assetAmountMin: e.target.value})}
-                  required
-                />
-                <button type="submit" disabled={loading}>Add Liquidity</button>
-              </form>
+              <>
+                {/* Current Pool Status */}
+                <div style={{ 
+                  background: '#374151', 
+                  border: '1px solid #4b5563', 
+                  borderRadius: '8px', 
+                  padding: '1rem', 
+                  marginBottom: '1.5rem' 
+                }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#ffffff' }}>Current Pool: {assetName}/QU</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.5rem', fontSize: '0.9rem' }}>
+                    <div style={{ color: '#d1d5db' }}>QU Reserve: {poolInfo.reservedQuAmount ? poolInfo.reservedQuAmount.toLocaleString() : '0'}</div>
+                    <div style={{ color: '#d1d5db' }}>Asset Reserve: {poolInfo.reservedAssetAmount ? poolInfo.reservedAssetAmount.toLocaleString() : '0'}</div>
+                    {userLiquidity && (
+                      <div style={{ color: '#61f0fe', fontWeight: 'bold' }}>Your Liquidity: {userLiquidity.liquidity ? userLiquidity.liquidity.toLocaleString() : '0'}</div>
+                    )}
+                  </div>
+                </div>
+
+                <form onSubmit={handleAddLiquidity}>
+                  <h3>Add Liquidity</h3>
+                  <div style={{ 
+                    background: '#451a03', 
+                    border: '1px solid #d97706', 
+                    borderRadius: '6px', 
+                    padding: '0.75rem', 
+                    marginBottom: '1rem' 
+                  }}>
+                    <p style={{ margin: '0', color: '#fbbf24', fontSize: '0.85rem' }}>
+                      ⚖️ <strong>Important:</strong> You must provide equal USD values of both tokens. 
+                      The pool will automatically calculate the ratio. If prices have changed since pool creation, 
+                      you might need to adjust your amounts.
+                    </p>
+                  </div>
+                  
+                  <input
+                    type="number"
+                    placeholder="QU Amount Desired"
+                    value={liquidityForm.quAmountDesired}
+                    onChange={(e) => setLiquidityForm({...liquidityForm, quAmountDesired: e.target.value})}
+                    required
+                  />
+                  <input
+                    type="number"
+                    placeholder="Asset Amount Desired"
+                    value={liquidityForm.assetAmountDesired}
+                    onChange={(e) => setLiquidityForm({...liquidityForm, assetAmountDesired: e.target.value})}
+                    required
+                  />
+                  <input
+                    type="number"
+                    placeholder="QU Amount Min (slippage protection)"
+                    value={liquidityForm.quAmountMin}
+                    onChange={(e) => setLiquidityForm({...liquidityForm, quAmountMin: e.target.value})}
+                    required
+                  />
+                  <input
+                    type="number"
+                    placeholder="Asset Amount Min (slippage protection)"
+                    value={liquidityForm.assetAmountMin}
+                    onChange={(e) => setLiquidityForm({...liquidityForm, assetAmountMin: e.target.value})}
+                    required
+                  />
+                  <button type="submit" disabled={loading}>Add Liquidity</button>
+                </form>
+              </>
             ) : (
-              <div>Please load a pool first from the Pools tab</div>
+              <div style={{ 
+                background: '#374151', 
+                border: '1px solid #4b5563', 
+                borderRadius: '8px', 
+                padding: '2rem', 
+                textAlign: 'center' 
+              }}>
+                <h3 style={{ color: '#9ca3af', margin: '0 0 1rem 0' }}>No Pool Selected</h3>
+                <p style={{ color: '#6b7280', margin: '0' }}>
+                  Please select a pool from the Pools tab first, then come back here to manage liquidity.
+                </p>
+              </div>
             )}
           </div>
         )}
@@ -586,61 +870,159 @@ You can now create a pool for this asset!`);
         {activeTab === 'swap' && (
           <div className="swap-section">
             <h2>Swap Tokens</h2>
-            {poolInfo && poolInfo.poolExists && poolInfo.poolExists > 0 ? (
-              <div className="swap-form">
-                <div className="swap-type">
-                  <label>
-                    <input
-                      type="radio"
-                      value="qu"
-                      checked={swapForm.inputType === 'qu'}
-                      onChange={(e) => setSwapForm({...swapForm, inputType: e.target.value, quote: null})}
-                    />
-                    QU → Asset
-                  </label>
-                  <label>
-                    <input
-                      type="radio"
-                      value="asset"
-                      checked={swapForm.inputType === 'asset'}
-                      onChange={(e) => setSwapForm({...swapForm, inputType: e.target.value, quote: null})}
-                    />
-                    Asset → QU
-                  </label>
+            
+            {/* Swap Explanation */}
+            <div style={{ 
+              background: '#1e3a8a', 
+              border: '1px solid #3b82f6', 
+              borderRadius: '8px', 
+              padding: '1.5rem', 
+              marginBottom: '2rem' 
+            }}>
+              <h3 style={{ margin: '0 0 1rem 0', color: '#93c5fd' }}>🔄 What is Swapping?</h3>
+              <div style={{ color: '#93c5fd', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                <p style={{ margin: '0 0 1rem 0' }}>
+                  <strong>Swapping</strong> lets you exchange one token for another instantly using liquidity pools. 
+                  No need to find someone to trade with - the pool handles everything automatically!
+                </p>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem', margin: '1rem 0' }}>
+                  <div style={{ background: '#064e3b', padding: '1rem', borderRadius: '6px', border: '1px solid #059669' }}>
+                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#6ee7b7' }}>How it Works</h4>
+                    <ol style={{ margin: '0', paddingLeft: '1.2rem', color: '#a7f3d0' }}>
+                      <li>Choose what to swap (QU ↔ Token)</li>
+                      <li>Enter amount you want to trade</li>
+                      <li>Get instant quote</li>
+                      <li>Confirm and execute swap</li>
+                    </ol>
+                  </div>
+                  
+                  <div style={{ background: '#451a03', padding: '1rem', borderRadius: '6px', border: '1px solid #d97706' }}>
+                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#fbbf24' }}>⚠️ Things to Know</h4>
+                    <ul style={{ margin: '0', paddingLeft: '1.2rem', color: '#fed7aa' }}>
+                      <li>Each swap pays a small fee</li>
+                      <li>Large swaps may get worse rates</li>
+                      <li>Prices update constantly</li>
+                      <li>Set slippage tolerance wisely</li>
+                    </ul>
+                  </div>
                 </div>
                 
-                <input
-                  type="number"
-                  placeholder={`${swapForm.inputType === 'qu' ? 'QU' : 'Asset'} Amount`}
-                  value={swapForm.inputAmount}
-                  onChange={(e) => setSwapForm({...swapForm, inputAmount: e.target.value, quote: null})}
-                />
-                
-                <button onClick={handleGetQuote} disabled={loading}>
-                  Get Quote
-                </button>
-                
-                {swapForm.quote && (
-                  <div className="quote-info">
-                    <div>Expected Output: {
-                      swapForm.inputType === 'qu' 
-                        ? swapForm.quote.assetAmountOut 
-                        : swapForm.quote.quAmountOut
-                    }</div>
+                <p style={{ margin: '1rem 0 0 0', fontSize: '0.85rem', fontStyle: 'italic' }}>
+                  💡 <strong>Slippage:</strong> The difference between expected and actual price due to price movement during your transaction. 
+                  Higher slippage tolerance = transaction more likely to succeed but potentially worse price.
+                </p>
+              </div>
+            </div>
+
+            {poolInfo && poolInfo.poolExists && poolInfo.poolExists > 0 ? (
+              <>
+                {/* Current Pool Status */}
+                <div style={{ 
+                  background: '#374151', 
+                  border: '1px solid #4b5563', 
+                  borderRadius: '8px', 
+                  padding: '1rem', 
+                  marginBottom: '1.5rem' 
+                }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#ffffff' }}>Trading Pair: {assetName}/QU</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem', fontSize: '0.9rem' }}>
+                    <div style={{ color: '#d1d5db' }}>Available QU: {poolInfo.reservedQuAmount ? poolInfo.reservedQuAmount.toLocaleString() : '0'}</div>
+                    <div style={{ color: '#d1d5db' }}>Available {assetName}: {poolInfo.reservedAssetAmount ? poolInfo.reservedAssetAmount.toLocaleString() : '0'}</div>
+                    <div style={{ color: '#61f0fe' }}>
+                      Current Rate: {poolInfo.reservedQuAmount && poolInfo.reservedAssetAmount ? 
+                        (poolInfo.reservedQuAmount / poolInfo.reservedAssetAmount).toFixed(4) : '0'} QU per {assetName}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="swap-form">
+                  <h3>Choose Swap Direction</h3>
+                  <div className="swap-type">
+                    <label>
+                      <input
+                        type="radio"
+                        value="qu"
+                        checked={swapForm.inputType === 'qu'}
+                        onChange={(e) => setSwapForm({...swapForm, inputType: e.target.value, quote: null})}
+                      />
+                      QU → {assetName} <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>(Buy {assetName} with QU)</span>
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        value="asset"
+                        checked={swapForm.inputType === 'asset'}
+                        onChange={(e) => setSwapForm({...swapForm, inputType: e.target.value, quote: null})}
+                      />
+                      {assetName} → QU <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>(Sell {assetName} for QU)</span>
+                    </label>
+                  </div>
+                  
+                  <div style={{ marginBottom: '1rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', color: '#e5e7eb', fontWeight: '500' }}>
+                      Amount to Swap
+                    </label>
                     <input
                       type="number"
-                      placeholder="Minimum Output (optional)"
-                      value={swapForm.outputMin}
-                      onChange={(e) => setSwapForm({...swapForm, outputMin: e.target.value})}
+                      placeholder={`${swapForm.inputType === 'qu' ? 'QU' : assetName} Amount`}
+                      value={swapForm.inputAmount}
+                      onChange={(e) => setSwapForm({...swapForm, inputAmount: e.target.value, quote: null})}
                     />
-                    <button onClick={handleSwap} disabled={loading}>
-                      Execute Swap
-                    </button>
                   </div>
-                )}
-              </div>
+                  
+                  <button onClick={handleGetQuote} disabled={loading || !swapForm.inputAmount}>
+                    {loading ? 'Getting Quote...' : 'Get Quote'}
+                  </button>
+                  
+                  {swapForm.quote && (
+                    <div className="quote-info">
+                      <h4 style={{ margin: '0 0 1rem 0', color: '#61f0fe' }}>Quote Results</h4>
+                      <div style={{ marginBottom: '1rem' }}>
+                        <strong>You'll receive approximately: </strong>
+                        {swapForm.inputType === 'qu' 
+                          ? `${swapForm.quote.assetAmountOut} ${assetName}`
+                          : `${swapForm.quote.quAmountOut} QU`
+                        }
+                      </div>
+                      
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', color: '#e5e7eb', fontWeight: '500' }}>
+                          Minimum Output (Slippage Protection)
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="Leave empty for 5% tolerance"
+                          value={swapForm.outputMin}
+                          onChange={(e) => setSwapForm({...swapForm, outputMin: e.target.value})}
+                          style={{ marginBottom: '0.5rem' }}
+                        />
+                        <small style={{ display: 'block', color: '#9ca3af', fontSize: '0.8rem' }}>
+                          If the actual output falls below this amount, the transaction will fail. 
+                          Recommended: Set 5-10% below expected output.
+                        </small>
+                      </div>
+                      
+                      <button onClick={handleSwap} disabled={loading} style={{ width: '100%' }}>
+                        {loading ? 'Executing Swap...' : `Confirm Swap`}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
             ) : (
-              <div>Please load a pool first from the Pools tab</div>
+              <div style={{ 
+                background: '#374151', 
+                border: '1px solid #4b5563', 
+                borderRadius: '8px', 
+                padding: '2rem', 
+                textAlign: 'center' 
+              }}>
+                <h3 style={{ color: '#9ca3af', margin: '0 0 1rem 0' }}>No Pool Selected</h3>
+                <p style={{ color: '#6b7280', margin: '0' }}>
+                  Please select a pool from the Pools tab first, then come back here to swap tokens.
+                </p>
+              </div>
             )}
           </div>
         )}
