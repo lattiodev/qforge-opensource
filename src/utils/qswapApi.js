@@ -331,6 +331,17 @@ export async function createPool(qubicConnect, assetIssuer, assetName) {
 }
 
 export async function addLiquidity(qubicConnect, assetIssuer, assetName, quAmountDesired, assetAmountDesired, quAmountMin, assetAmountMin) {
+  console.log('[QSwap] AddLiquidity - Contract expects:', {
+    transactionAmount: quAmountDesired,
+    parameters: {
+      assetIssuer,
+      assetName, 
+      assetAmountDesired,
+      quAmountMin,
+      assetAmountMin
+    }
+  });
+  
   const txDetails = {
     qubicConnect,
     contractIndex: QSWAP_CONTRACT_INDEX,
