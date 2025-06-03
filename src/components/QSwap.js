@@ -502,6 +502,14 @@ You will receive your QU and ${assetName} tokens back. Please wait 30-60 seconds
       const assetNameUint64 = assetNameToUint64(assetName);
       let quote;
       
+      console.log('Getting quote for:', {
+        inputType: swapForm.inputType,
+        inputAmount: swapForm.inputAmount,
+        assetName,
+        assetNameUint64,
+        assetIssuer
+      });
+      
       if (swapForm.inputType === 'qu') {
         quote = await quoteExactQuInput(
           httpEndpoint,
@@ -510,6 +518,7 @@ You will receive your QU and ${assetName} tokens back. Please wait 30-60 seconds
           swapForm.inputAmount,
           qubicConnect?.qHelper
         );
+        console.log('QU → Asset quote response:', quote);
       } else {
         quote = await quoteExactAssetInput(
           httpEndpoint,
@@ -518,11 +527,19 @@ You will receive your QU and ${assetName} tokens back. Please wait 30-60 seconds
           swapForm.inputAmount,
           qubicConnect?.qHelper
         );
+        console.log('Asset → QU quote response:', quote);
       }
       
-      setSwapForm({ ...swapForm, quote });
-      setMessage('Quote received');
+      if (quote && quote.success && quote.decodedFields) {
+        console.log('Quote decoded fields:', quote.decodedFields);
+        setSwapForm({ ...swapForm, quote: quote.decodedFields });
+        setMessage('Quote received successfully');
+      } else {
+        console.error('Quote failed or has unexpected structure:', quote);
+        setMessage(`Quote failed: ${quote?.error || 'Unexpected response structure'}`);
+      }
     } catch (error) {
+      console.error('Quote error:', error);
       setMessage(`Error: ${error.message}`);
     }
     setLoading(false);
