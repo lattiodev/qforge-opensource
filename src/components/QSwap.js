@@ -64,6 +64,66 @@ function QSwap() {
     return endpoint;
   };
 
+  // Test function to check if QSwap contract exists
+  const testQSwapContract = async () => {
+    try {
+      const endpoint = formatEndpoint(httpEndpoint);
+      if (!endpoint) {
+        console.error('No endpoint configured');
+        return;
+      }
+
+      console.log('Testing QSwap contract existence...');
+      
+      // Test direct API call to see what we get
+      const response = await fetch(`${endpoint}/v1/querySmartContract`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contractIndex: 13,
+          inputType: 1,
+          inputSize: 0,
+          requestData: ''
+        })
+      });
+      
+      const data = await response.json();
+      console.log('Direct QSwap API response:', data);
+      
+      if (data.responseData) {
+        const binaryString = atob(data.responseData);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        console.log('Response has data, length:', bytes.length);
+        
+        if (bytes.length >= 20) { // 5 uint32 values = 20 bytes
+          const dv = new DataView(bytes.buffer);
+          const decoded = {
+            assetIssuanceFee: dv.getUint32(0, true),
+            poolCreationFee: dv.getUint32(4, true),
+            transferFee: dv.getUint32(8, true),
+            swapRate: dv.getUint32(12, true),
+            protocolRate: dv.getUint32(16, true)
+          };
+          console.log('Manually decoded fees:', decoded);
+          setMessage('Contract found! Check console for fees');
+        } else {
+          console.log('Response too short for fee data');
+        }
+      } else {
+        console.log('No responseData in API response - contract might not exist');
+        setMessage('QSwap contract not found at index 13 on this network');
+      }
+    } catch (error) {
+      console.error('Test failed:', error);
+      setMessage('Error testing contract: ' + error.message);
+    }
+  };
+
   useEffect(() => {
     if (httpEndpoint) {
       loadFees();
@@ -79,8 +139,14 @@ function QSwap() {
       }
       
       console.log('Loading fees from endpoint:', endpoint);
-      const feeData = await getQswapFees(endpoint);
+      const feeData = await getQswapFees(endpoint, qubicConnect?.qHelper);
       console.log('Raw fee data:', feeData);
+      
+      // Debug: Check what's in the raw response
+      if (feeData && feeData.rawResponse) {
+        console.log('Raw API response from QSwap contract:', feeData.rawResponse);
+        console.log('Response data field:', feeData.rawResponse.responseData);
+      }
       
       // Check if the response has the expected structure
       if (feeData && feeData.success && feeData.decodedFields) {
@@ -89,6 +155,8 @@ function QSwap() {
       } else if (feeData && feeData.success === false) {
         console.error('Failed to load fees:', feeData.error);
         setMessage('Failed to load protocol fees: ' + feeData.error);
+      } else if (feeData && feeData.message === 'No data returned from contract') {
+        setMessage('QSwap contract not found or getFees function not implemented on this network');
       } else {
         console.warn('Unexpected fee data format:', feeData);
         setMessage('Unable to load fees - unexpected response format');
@@ -110,7 +178,7 @@ function QSwap() {
       const assetNameUint64 = assetNameToUint64(assetName);
       console.log('Loading pool for:', { assetIssuer, assetName, assetNameUint64 });
       
-      const info = await getPoolBasicState(httpEndpoint, assetIssuer, assetNameUint64);
+      const info = await getPoolBasicState(httpEndpoint, assetIssuer, assetNameUint64, qubicConnect?.qHelper);
       console.log('Pool info response:', info);
       
       if (info && info.success && info.decodedFields) {
@@ -122,7 +190,8 @@ function QSwap() {
             httpEndpoint, 
             assetIssuer, 
             assetNameUint64, 
-            qubicConnect.wallet.publicKey
+            qubicConnect.wallet.publicKey,
+            qubicConnect?.qHelper
           );
           console.log('Liquidity response:', liquidity);
           
@@ -249,14 +318,16 @@ function QSwap() {
           httpEndpoint,
           assetIssuer,
           assetNameUint64,
-          swapForm.inputAmount
+          swapForm.inputAmount,
+          qubicConnect?.qHelper
         );
       } else {
         quote = await quoteExactAssetInput(
           httpEndpoint,
           assetIssuer,
           assetNameUint64,
-          swapForm.inputAmount
+          swapForm.inputAmount,
+          qubicConnect?.qHelper
         );
       }
       
@@ -323,64 +394,6 @@ function QSwap() {
         </div>
       )}
       
-      {/* Debug section - remove in production */}
-      <div style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: '#333', borderRadius: '8px' }}>
-        <button 
-          onClick={async () => {
-            try {
-              console.log('Testing QSwap API with endpoint:', httpEndpoint);
-              const response = await fetch(`${httpEndpoint}/v1/querySmartContract`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  contractIndex: 13,
-                  inputType: 1,
-                  inputSize: 0,
-                  requestData: ''
-                })
-              });
-              const data = await response.json();
-              console.log('Raw API Response:', data);
-              
-              // Decode the base64 response
-              if (data.responseData) {
-                const binaryString = atob(data.responseData);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                  bytes[i] = binaryString.charCodeAt(i);
-                }
-                
-                // Parse as 5 uint32 values (4 bytes each)
-                const dv = new DataView(bytes.buffer);
-                const decoded = {
-                  assetIssuanceFee: dv.getUint32(0, true),
-                  poolCreationFee: dv.getUint32(4, true),
-                  transferFee: dv.getUint32(8, true),
-                  swapRate: dv.getUint32(12, true),
-                  protocolRate: dv.getUint32(16, true)
-                };
-                console.log('Decoded fees:', decoded);
-                alert('Check console for decoded fees');
-              }
-            } catch (err) {
-              console.error('Direct API test failed:', err);
-              alert('API test failed: ' + err.message);
-            }
-          }}
-          style={{ marginRight: '1rem' }}
-        >
-          Test Direct API
-        </button>
-        <button onClick={loadFees}>
-          Reload Fees
-        </button>
-        <span style={{ marginLeft: '1rem', color: '#888' }}>
-          Endpoint: {httpEndpoint || 'Not set'}
-        </span>
-      </div>
-      
       {!fees ? (
         <div className="fees-info">
           <h3>Protocol Fees</h3>
@@ -390,6 +403,14 @@ function QSwap() {
             <div>Transfer Fee: Loading...</div>
             <div>Swap Fee: Loading...</div>
             <div>Protocol Fee: Loading...</div>
+          </div>
+          <div style={{ marginTop: '1rem' }}>
+            <button onClick={loadFees} style={{ marginRight: '1rem' }}>
+              Reload Fees
+            </button>
+            <button onClick={testQSwapContract}>
+              Test Contract
+            </button>
           </div>
           {message && message.includes('fees') && (
             <div className="fee-error">{message}</div>

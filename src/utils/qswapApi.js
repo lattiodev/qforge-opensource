@@ -26,69 +26,66 @@ const QSWAP_SWAP_QU_FOR_EXACT_ASSET = 7;
 const QSWAP_SWAP_EXACT_ASSET_FOR_QU = 8;
 const QSWAP_SWAP_ASSET_FOR_EXACT_QU = 9;
 
-// Custom query function for debugging
-async function queryQswapContract(httpEndpoint, functionIndex, params = {}, inputFields = [], outputDefinition = null) {
-  console.log(`[QSwap] Querying function ${functionIndex} on contract ${QSWAP_CONTRACT_INDEX}`);
-  
-  // Make the raw API call to see what we get
-  try {
-    const encodedData = encodeParams(params, inputFields);
-    const inputSize = encodedData ? Buffer.from(encodedData, 'base64').length : 0;
-    
-    const response = await fetch(`${httpEndpoint}/v1/querySmartContract`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contractIndex: QSWAP_CONTRACT_INDEX,
-        inputType: functionIndex,
-        inputSize: inputSize,
-        requestData: encodedData || ''
-      })
-    });
-    
-    const json = await response.json();
-    console.log('[QSwap] Raw API response:', json);
-    
-    if (json.responseData) {
-      const decoded = decodeContractResponse(json.responseData, outputDefinition?.outputs || []);
-      console.log('[QSwap] Decoded response:', decoded);
-      return decoded;
-    } else {
-      console.warn('[QSwap] No responseData in API response');
-      return { success: false, error: 'No responseData in API response' };
-    }
-  } catch (error) {
-    console.error('[QSwap] Query error:', error);
-    return { success: false, error: error.message };
-  }
-}
-
 // View Functions
-export async function getQswapFees(httpEndpoint) {
-  // QSwap Fees has no input parameters
-  const result = await queryQswapContract(
+export async function getQswapFees(httpEndpoint, qHelper = null) {
+  console.log('[QSwap] Getting fees from endpoint:', httpEndpoint);
+  
+  const selectedFunction = {
+    name: 'getFees',
+    outputs: [
+      { name: 'assetIssuanceFee', type: 'uint32' },
+      { name: 'poolCreationFee', type: 'uint32' },
+      { name: 'transferFee', type: 'uint32' },
+      { name: 'swapRate', type: 'uint32' },
+      { name: 'protocolRate', type: 'uint32' }
+    ]
+  };
+  
+  console.log('[QSwap] Making query contract call...');
+  
+  const result = await queryContract(
     httpEndpoint,
+    QSWAP_CONTRACT_INDEX,
     QSWAP_GET_FEE,
-    {},
-    [],
-    {
-      name: 'Fees',
-      outputs: [
-        { name: 'assetIssuanceFee', type: 'uint32' },
-        { name: 'poolCreationFee', type: 'uint32' },
-        { name: 'transferFee', type: 'uint32' },
-        { name: 'swapRate', type: 'uint32' },  // Changed from swapFee to swapRate
-        { name: 'protocolRate', type: 'uint32' }  // Changed from protocolFee to protocolRate
-      ]
-    }
+    {}, // No input parameters
+    [], // No input fields
+    selectedFunction,
+    null, // customIndexes
+    qHelper // Pass qHelper (but not needed for this function)
   );
   
-  console.log('QSwap Fees API Response:', result);
+  console.log('[QSwap] Fees query result:', result);
   
-  // The queryContract already returns the decoded data in the correct format
-  // Just map the field names for UI consistency
+  // Debug: Let's also check what the raw API call would return
+  if (result && result.rawResponse) {
+    console.log('[QSwap] Raw response data:', result.rawResponse.responseData);
+    
+    // Try to manually decode like the test function does
+    if (result.rawResponse.responseData) {
+      try {
+        const binaryString = atob(result.rawResponse.responseData);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        if (bytes.length >= 20) { // 5 uint32 values = 20 bytes
+          const dv = new DataView(bytes.buffer);
+          const manualDecode = {
+            assetIssuanceFee: dv.getUint32(0, true),
+            poolCreationFee: dv.getUint32(4, true),
+            transferFee: dv.getUint32(8, true),
+            swapRate: dv.getUint32(12, true),
+            protocolRate: dv.getUint32(16, true)
+          };
+          console.log('[QSwap] Manual decode of fees:', manualDecode);
+        }
+      } catch (decodeError) {
+        console.error('[QSwap] Manual decode failed:', decodeError);
+      }
+    }
+  }
+  
   if (result && result.success && result.decodedFields) {
     return {
       success: true,
@@ -96,8 +93,8 @@ export async function getQswapFees(httpEndpoint) {
         assetIssuanceFee: result.decodedFields.assetIssuanceFee || 0,
         poolCreationFee: result.decodedFields.poolCreationFee || 0,
         transferFee: result.decodedFields.transferFee || 0,
-        swapFee: result.decodedFields.swapRate || 0,  // Map swapRate to swapFee for UI
-        protocolFee: result.decodedFields.protocolRate || 0  // Map protocolRate to protocolFee for UI
+        swapFee: result.decodedFields.swapRate || 0,
+        protocolFee: result.decodedFields.protocolRate || 0
       }
     };
   }
@@ -105,130 +102,196 @@ export async function getQswapFees(httpEndpoint) {
   return result;
 }
 
-export async function getPoolBasicState(httpEndpoint, assetIssuer, assetName) {
-  const result = await queryQswapContract(
+export async function getPoolBasicState(httpEndpoint, assetIssuer, assetName, qHelper = null) {
+  console.log('[QSwap] Getting pool state for:', { assetIssuer, assetName });
+  
+  const selectedFunction = {
+    name: 'getPoolBasicState',
+    outputs: [
+      { name: 'poolExists', type: 'sint64' },
+      { name: 'reservedQuAmount', type: 'sint64' },
+      { name: 'reservedAssetAmount', type: 'sint64' },
+      { name: 'totalLiquidity', type: 'sint64' }
+    ]
+  };
+  
+  const inputFields = [
+    { name: 'assetIssuer', type: 'id' },
+    { name: 'assetName', type: 'uint64' }
+  ];
+  
+  const result = await queryContract(
     httpEndpoint,
+    QSWAP_CONTRACT_INDEX,
     QSWAP_GET_POOL_BASIC_STATE,
     { assetIssuer, assetName },
-    [
-      { name: 'assetIssuer', type: 'id' },
-      { name: 'assetName', type: 'uint64' }
-    ],
-    {
-      name: 'GetPoolBasicState',
-      outputs: [
-        { name: 'poolExists', type: 'sint64' },
-        { name: 'reservedQuAmount', type: 'sint64' },
-        { name: 'reservedAssetAmount', type: 'sint64' },
-        { name: 'totalLiquidity', type: 'sint64' }
-      ]
-    }
+    inputFields,
+    selectedFunction,
+    null, // customIndexes
+    qHelper // Pass qHelper
   );
+  
+  console.log('[QSwap] Pool state result:', result);
   return result;
 }
 
-export async function getLiquidityOf(httpEndpoint, assetIssuer, assetName, account) {
-  const result = await queryQswapContract(
+export async function getLiquidityOf(httpEndpoint, assetIssuer, assetName, account, qHelper = null) {
+  console.log('[QSwap] Getting liquidity for:', { assetIssuer, assetName, account });
+  
+  const selectedFunction = {
+    name: 'getLiquidityOf',
+    outputs: [
+      { name: 'liquidity', type: 'sint64' }
+    ]
+  };
+  
+  const inputFields = [
+    { name: 'assetIssuer', type: 'id' },
+    { name: 'assetName', type: 'uint64' },
+    { name: 'account', type: 'id' }
+  ];
+  
+  const result = await queryContract(
     httpEndpoint,
+    QSWAP_CONTRACT_INDEX,
     QSWAP_GET_LIQUIDITY_OF,
     { assetIssuer, assetName, account },
-    [
-      { name: 'assetIssuer', type: 'id' },
-      { name: 'assetName', type: 'uint64' },
-      { name: 'account', type: 'id' }
-    ],
-    {
-      name: 'GetLiquidityOf',
-      outputs: [
-        { name: 'liquidity', type: 'sint64' }
-      ]
-    }
+    inputFields,
+    selectedFunction,
+    null, // customIndexes
+    qHelper // Pass qHelper
   );
+  
+  console.log('[QSwap] Liquidity result:', result);
   return result;
 }
 
 // Quote functions
-export async function quoteExactQuInput(httpEndpoint, assetIssuer, assetName, quAmountIn) {
-  const result = await queryQswapContract(
+export async function quoteExactQuInput(httpEndpoint, assetIssuer, assetName, quAmountIn, qHelper = null) {
+  console.log('[QSwap] Getting quote for QU input:', { assetIssuer, assetName, quAmountIn });
+  
+  const selectedFunction = {
+    name: 'quoteExactQuInput',
+    outputs: [
+      { name: 'assetAmountOut', type: 'sint64' }
+    ]
+  };
+  
+  const inputFields = [
+    { name: 'assetIssuer', type: 'id' },
+    { name: 'assetName', type: 'uint64' },
+    { name: 'quAmountIn', type: 'sint64' }
+  ];
+  
+  const result = await queryContract(
     httpEndpoint,
+    QSWAP_CONTRACT_INDEX,
     QSWAP_QUOTE_EXACT_QU_INPUT,
     { assetIssuer, assetName, quAmountIn },
-    [
-      { name: 'assetIssuer', type: 'id' },
-      { name: 'assetName', type: 'uint64' },
-      { name: 'quAmountIn', type: 'sint64' }
-    ],
-    {
-      name: 'QuoteExactQuInput',
-      outputs: [
-        { name: 'assetAmountOut', type: 'sint64' }
-      ]
-    }
+    inputFields,
+    selectedFunction,
+    null, // customIndexes
+    qHelper // Pass qHelper
   );
+  
+  console.log('[QSwap] Quote QU input result:', result);
   return result;
 }
 
-export async function quoteExactQuOutput(httpEndpoint, assetIssuer, assetName, quAmountOut) {
-  const result = await queryQswapContract(
+export async function quoteExactQuOutput(httpEndpoint, assetIssuer, assetName, quAmountOut, qHelper = null) {
+  console.log('[QSwap] Getting quote for QU output:', { assetIssuer, assetName, quAmountOut });
+  
+  const selectedFunction = {
+    name: 'quoteExactQuOutput',
+    outputs: [
+      { name: 'assetAmountIn', type: 'sint64' }
+    ]
+  };
+  
+  const inputFields = [
+    { name: 'assetIssuer', type: 'id' },
+    { name: 'assetName', type: 'uint64' },
+    { name: 'quAmountOut', type: 'sint64' }
+  ];
+  
+  const result = await queryContract(
     httpEndpoint,
+    QSWAP_CONTRACT_INDEX,
     QSWAP_QUOTE_EXACT_QU_OUTPUT,
     { assetIssuer, assetName, quAmountOut },
-    [
-      { name: 'assetIssuer', type: 'id' },
-      { name: 'assetName', type: 'uint64' },
-      { name: 'quAmountOut', type: 'sint64' }
-    ],
-    {
-      name: 'QuoteExactQuOutput',
-      outputs: [
-        { name: 'assetAmountIn', type: 'sint64' }
-      ]
-    }
+    inputFields,
+    selectedFunction,
+    null, // customIndexes
+    qHelper // Pass qHelper
   );
+  
+  console.log('[QSwap] Quote QU output result:', result);
   return result;
 }
 
-export async function quoteExactAssetInput(httpEndpoint, assetIssuer, assetName, assetAmountIn) {
-  const result = await queryQswapContract(
+export async function quoteExactAssetInput(httpEndpoint, assetIssuer, assetName, assetAmountIn, qHelper = null) {
+  console.log('[QSwap] Getting quote for asset input:', { assetIssuer, assetName, assetAmountIn });
+  
+  const selectedFunction = {
+    name: 'quoteExactAssetInput',
+    outputs: [
+      { name: 'quAmountOut', type: 'sint64' }
+    ]
+  };
+  
+  const inputFields = [
+    { name: 'assetIssuer', type: 'id' },
+    { name: 'assetName', type: 'uint64' },
+    { name: 'assetAmountIn', type: 'sint64' }
+  ];
+  
+  const result = await queryContract(
     httpEndpoint,
+    QSWAP_CONTRACT_INDEX,
     QSWAP_QUOTE_EXACT_ASSET_INPUT,
     { assetIssuer, assetName, assetAmountIn },
-    [
-      { name: 'assetIssuer', type: 'id' },
-      { name: 'assetName', type: 'uint64' },
-      { name: 'assetAmountIn', type: 'sint64' }
-    ],
-    {
-      name: 'QuoteExactAssetInput',
-      outputs: [
-        { name: 'quAmountOut', type: 'sint64' }
-      ]
-    }
+    inputFields,
+    selectedFunction,
+    null, // customIndexes
+    qHelper // Pass qHelper
   );
+  
+  console.log('[QSwap] Quote asset input result:', result);
   return result;
 }
 
-export async function quoteExactAssetOutput(httpEndpoint, assetIssuer, assetName, assetAmountOut) {
-  const result = await queryQswapContract(
+export async function quoteExactAssetOutput(httpEndpoint, assetIssuer, assetName, assetAmountOut, qHelper = null) {
+  console.log('[QSwap] Getting quote for asset output:', { assetIssuer, assetName, assetAmountOut });
+  
+  const selectedFunction = {
+    name: 'quoteExactAssetOutput',
+    outputs: [
+      { name: 'quAmountIn', type: 'sint64' }
+    ]
+  };
+  
+  const inputFields = [
+    { name: 'assetIssuer', type: 'id' },
+    { name: 'assetName', type: 'uint64' },
+    { name: 'assetAmountOut', type: 'sint64' }
+  ];
+  
+  const result = await queryContract(
     httpEndpoint,
+    QSWAP_CONTRACT_INDEX,
     QSWAP_QUOTE_EXACT_ASSET_OUTPUT,
     { assetIssuer, assetName, assetAmountOut },
-    [
-      { name: 'assetIssuer', type: 'id' },
-      { name: 'assetName', type: 'uint64' },
-      { name: 'assetAmountOut', type: 'sint64' }
-    ],
-    {
-      name: 'QuoteExactAssetOutput',
-      outputs: [
-        { name: 'quAmountIn', type: 'sint64' }
-      ]
-    }
+    inputFields,
+    selectedFunction,
+    null, // customIndexes
+    qHelper // Pass qHelper
   );
+  
+  console.log('[QSwap] Quote asset output result:', result);
   return result;
 }
 
-// Transaction Functions
+// Transaction Functions - using executeTransactionWithWallet pattern
 export async function issueAsset(qubicConnect, assetName, numberOfShares, unitOfMeasurement, numberOfDecimalPlaces) {
   const txDetails = {
     qubicConnect,
@@ -243,9 +306,7 @@ export async function issueAsset(qubicConnect, assetName, numberOfShares, unitOf
     ],
     amount: '1000000000', // 1 billion qus fee
     sourceId: qubicConnect.wallet.publicKey,
-    destinationId: QSWAP_ADDRESS,
-    functionName: 'IssueAsset',
-    functionParams: { assetName, numberOfShares, unitOfMeasurement, numberOfDecimalPlaces }
+    destinationId: QSWAP_ADDRESS
   };
   
   return await executeTransactionWithWallet(txDetails);
@@ -263,9 +324,7 @@ export async function createPool(qubicConnect, assetIssuer, assetName) {
     ],
     amount: '1000000000', // 1 billion qus fee
     sourceId: qubicConnect.wallet.publicKey,
-    destinationId: QSWAP_ADDRESS,
-    functionName: 'CreatePool',
-    functionParams: { assetIssuer, assetName }
+    destinationId: QSWAP_ADDRESS
   };
   
   return await executeTransactionWithWallet(txDetails);
@@ -286,9 +345,7 @@ export async function addLiquidity(qubicConnect, assetIssuer, assetName, quAmoun
     ],
     amount: quAmountDesired.toString(), // Amount of QU to add
     sourceId: qubicConnect.wallet.publicKey,
-    destinationId: QSWAP_ADDRESS,
-    functionName: 'AddLiquidity',
-    functionParams: { assetIssuer, assetName, assetAmountDesired, quAmountMin, assetAmountMin }
+    destinationId: QSWAP_ADDRESS
   };
   
   return await executeTransactionWithWallet(txDetails);
@@ -309,9 +366,7 @@ export async function removeLiquidity(qubicConnect, assetIssuer, assetName, burn
     ],
     amount: '0', // No QU needed
     sourceId: qubicConnect.wallet.publicKey,
-    destinationId: QSWAP_ADDRESS,
-    functionName: 'RemoveLiquidity',
-    functionParams: { assetIssuer, assetName, burnLiquidity, quAmountMin, assetAmountMin }
+    destinationId: QSWAP_ADDRESS
   };
   
   return await executeTransactionWithWallet(txDetails);
@@ -330,9 +385,7 @@ export async function swapExactQuForAsset(qubicConnect, assetIssuer, assetName, 
     ],
     amount: quAmountIn.toString(), // QU to swap
     sourceId: qubicConnect.wallet.publicKey,
-    destinationId: QSWAP_ADDRESS,
-    functionName: 'SwapExactQuForAsset',
-    functionParams: { assetIssuer, assetName, assetAmountOutMin }
+    destinationId: QSWAP_ADDRESS
   };
   
   return await executeTransactionWithWallet(txDetails);
@@ -352,9 +405,7 @@ export async function transferShareOwnershipAndPossession(qubicConnect, assetIss
     ],
     amount: '1000000', // 1M qus transfer fee
     sourceId: qubicConnect.wallet.publicKey,
-    destinationId: QSWAP_ADDRESS,
-    functionName: 'TransferShareOwnershipAndPossession',
-    functionParams: { assetIssuer, assetName, newOwnerAndPossessor, amount }
+    destinationId: QSWAP_ADDRESS
   };
   
   return await executeTransactionWithWallet(txDetails);
