@@ -1038,7 +1038,6 @@ Swapped: ${parseInt(swapForm.inputAmount).toLocaleString()} QU for ${assetName}
                     <p style={{ margin: '0 0 0.5rem 0', color: '#d1d5db', fontSize: '0.9rem' }}>{pool.description}</p>
                     <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
                       <div>Added by: {pool.addedBy}</div>
-                      <div>Est. Liquidity: {parseInt(pool.estimatedLiquidity).toLocaleString()} QU</div>
                     </div>
                   </div>
                 ))}
@@ -1285,7 +1284,10 @@ Swapped: ${parseInt(swapForm.inputAmount).toLocaleString()} QU for ${assetName}
                               const suggestedAssetAmount = Math.round(parseFloat(quAmount) * ratio);
                               setLiquidityForm(prev => ({...prev, 
                                 quAmountDesired: quAmount,
-                                assetAmountDesired: suggestedAssetAmount.toString()
+                                assetAmountDesired: suggestedAssetAmount.toString(),
+                                // Auto-set minimum amounts at 95% for user convenience
+                                quAmountMin: Math.round(parseFloat(quAmount) * 0.95).toString(),
+                                assetAmountMin: Math.round(suggestedAssetAmount * 0.95).toString()
                               }));
                             }
                           }}
@@ -1325,7 +1327,10 @@ Swapped: ${parseInt(swapForm.inputAmount).toLocaleString()} QU for ${assetName}
                               const suggestedQuAmount = Math.round(parseFloat(assetAmount) * ratio);
                               setLiquidityForm(prev => ({...prev, 
                                 assetAmountDesired: assetAmount,
-                                quAmountDesired: suggestedQuAmount.toString()
+                                quAmountDesired: suggestedQuAmount.toString(),
+                                // Auto-set minimum amounts at 95% for user convenience
+                                quAmountMin: Math.round(suggestedQuAmount * 0.95).toString(),
+                                assetAmountMin: Math.round(parseFloat(assetAmount) * 0.95).toString()
                               }));
                             }
                           }}
@@ -1351,7 +1356,7 @@ Swapped: ${parseInt(swapForm.inputAmount).toLocaleString()} QU for ${assetName}
                         </label>
                         <input
                           type="number"
-                          placeholder="e.g. 950 (5% below desired)"
+                          placeholder="Auto-suggested at 95% of desired"
                           value={liquidityForm.quAmountMin}
                           onChange={(e) => setLiquidityForm({...liquidityForm, quAmountMin: e.target.value})}
                           style={{
@@ -1366,10 +1371,10 @@ Swapped: ${parseInt(swapForm.inputAmount).toLocaleString()} QU for ${assetName}
                           required
                         />
                         <small style={{ display: 'block', marginTop: '0.25rem', color: '#9ca3af', fontSize: '0.8rem' }}>
-                          Minimum QU you'll accept (recommended: 95% of desired amount)
+                          Minimum QU you'll accept (auto-set at 95%, you can adjust)
                           {liquidityForm.quAmountDesired && (
                             <span style={{ color: '#61f0fe', marginLeft: '0.5rem' }}>
-                              Suggested: {Math.round(parseFloat(liquidityForm.quAmountDesired) * 0.95)}
+                              • Suggested: {Math.round(parseFloat(liquidityForm.quAmountDesired) * 0.95)}
                             </span>
                           )}
                         </small>
@@ -1381,7 +1386,7 @@ Swapped: ${parseInt(swapForm.inputAmount).toLocaleString()} QU for ${assetName}
                         </label>
                         <input
                           type="number"
-                          placeholder="e.g. 95 (5% below desired)"
+                          placeholder="Auto-suggested at 95% of desired"
                           value={liquidityForm.assetAmountMin}
                           onChange={(e) => setLiquidityForm({...liquidityForm, assetAmountMin: e.target.value})}
                           style={{
@@ -1396,7 +1401,12 @@ Swapped: ${parseInt(swapForm.inputAmount).toLocaleString()} QU for ${assetName}
                           required
                         />
                         <small style={{ display: 'block', marginTop: '0.25rem', color: '#9ca3af', fontSize: '0.8rem' }}>
-                          Minimum {assetName} you'll accept (recommended: 95% of desired amount)
+                          Minimum {assetName} you'll accept (auto-set at 95%, you can adjust)
+                          {liquidityForm.assetAmountDesired && (
+                            <span style={{ color: '#61f0fe', marginLeft: '0.5rem' }}>
+                              • Suggested: {Math.round(parseFloat(liquidityForm.assetAmountDesired) * 0.95)}
+                            </span>
+                          )}
                         </small>
                       </div>
                       
@@ -1422,8 +1432,21 @@ Swapped: ${parseInt(swapForm.inputAmount).toLocaleString()} QU for ${assetName}
                         </div>
                       )}
                       
-                      <button type="submit" disabled={loading}>
-                        {loading ? 'Adding Liquidity...' : 'Add Liquidity'}
+                      <button type="submit" disabled={loading} style={{
+                        width: '100%',
+                        padding: '1rem',
+                        background: loading ? '#6b7280' : '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        fontSize: '1.1rem',
+                        fontWeight: 'bold',
+                        marginTop: '1rem',
+                        transition: 'background-color 0.3s ease',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                      }}>
+                        {loading ? '⏳ Adding Liquidity...' : '💧 Add Liquidity'}
                       </button>
                     </form>
 
@@ -1454,7 +1477,22 @@ Swapped: ${parseInt(swapForm.inputAmount).toLocaleString()} QU for ${assetName}
                               type="number"
                               placeholder={`Max: ${userLiquidity.liquidity} (your total position)`}
                               value={removeLiquidityForm.burnLiquidity}
-                              onChange={(e) => setRemoveLiquidityForm({...removeLiquidityForm, burnLiquidity: e.target.value})}
+                              onChange={(e) => {
+                                const burnAmount = e.target.value;
+                                setRemoveLiquidityForm({...removeLiquidityForm, burnLiquidity: burnAmount});
+                                
+                                // Auto-calculate minimum amounts at 95% of estimated output
+                                if (burnAmount && poolInfo && poolInfo.totalLiquidity > 0) {
+                                  const userShare = parseFloat(burnAmount) / poolInfo.totalLiquidity;
+                                  const estimatedQU = Math.floor(poolInfo.reservedQuAmount * userShare);
+                                  const estimatedAsset = Math.floor(poolInfo.reservedAssetAmount * userShare);
+                                  setRemoveLiquidityForm(prev => ({...prev,
+                                    burnLiquidity: burnAmount,
+                                    quAmountMin: Math.round(estimatedQU * 0.95).toString(),
+                                    assetAmountMin: Math.round(estimatedAsset * 0.95).toString()
+                                  }));
+                                }
+                              }}
                               max={userLiquidity.liquidity}
                               style={{
                                 width: '100%',
@@ -1470,28 +1508,72 @@ Swapped: ${parseInt(swapForm.inputAmount).toLocaleString()} QU for ${assetName}
                             <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
                               <button 
                                 type="button"
-                                onClick={() => setRemoveLiquidityForm({...removeLiquidityForm, burnLiquidity: Math.round(userLiquidity.liquidity * 0.25).toString()})}
+                                onClick={() => {
+                                  const burnAmount = Math.round(userLiquidity.liquidity * 0.25);
+                                  const userShare = burnAmount / poolInfo.totalLiquidity;
+                                  const estimatedQU = Math.floor(poolInfo.reservedQuAmount * userShare);
+                                  const estimatedAsset = Math.floor(poolInfo.reservedAssetAmount * userShare);
+                                  setRemoveLiquidityForm({
+                                    ...removeLiquidityForm, 
+                                    burnLiquidity: burnAmount.toString(),
+                                    quAmountMin: Math.round(estimatedQU * 0.95).toString(),
+                                    assetAmountMin: Math.round(estimatedAsset * 0.95).toString()
+                                  });
+                                }}
                                 style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', background: '#374151', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                               >
                                 25%
                               </button>
                               <button 
                                 type="button"
-                                onClick={() => setRemoveLiquidityForm({...removeLiquidityForm, burnLiquidity: Math.round(userLiquidity.liquidity * 0.5).toString()})}
+                                onClick={() => {
+                                  const burnAmount = Math.round(userLiquidity.liquidity * 0.5);
+                                  const userShare = burnAmount / poolInfo.totalLiquidity;
+                                  const estimatedQU = Math.floor(poolInfo.reservedQuAmount * userShare);
+                                  const estimatedAsset = Math.floor(poolInfo.reservedAssetAmount * userShare);
+                                  setRemoveLiquidityForm({
+                                    ...removeLiquidityForm, 
+                                    burnLiquidity: burnAmount.toString(),
+                                    quAmountMin: Math.round(estimatedQU * 0.95).toString(),
+                                    assetAmountMin: Math.round(estimatedAsset * 0.95).toString()
+                                  });
+                                }}
                                 style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', background: '#374151', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                               >
                                 50%
                               </button>
                               <button 
                                 type="button"
-                                onClick={() => setRemoveLiquidityForm({...removeLiquidityForm, burnLiquidity: Math.round(userLiquidity.liquidity * 0.75).toString()})}
+                                onClick={() => {
+                                  const burnAmount = Math.round(userLiquidity.liquidity * 0.75);
+                                  const userShare = burnAmount / poolInfo.totalLiquidity;
+                                  const estimatedQU = Math.floor(poolInfo.reservedQuAmount * userShare);
+                                  const estimatedAsset = Math.floor(poolInfo.reservedAssetAmount * userShare);
+                                  setRemoveLiquidityForm({
+                                    ...removeLiquidityForm, 
+                                    burnLiquidity: burnAmount.toString(),
+                                    quAmountMin: Math.round(estimatedQU * 0.95).toString(),
+                                    assetAmountMin: Math.round(estimatedAsset * 0.95).toString()
+                                  });
+                                }}
                                 style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', background: '#374151', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                               >
                                 75%
                               </button>
                               <button 
                                 type="button"
-                                onClick={() => setRemoveLiquidityForm({...removeLiquidityForm, burnLiquidity: userLiquidity.liquidity.toString()})}
+                                onClick={() => {
+                                  const burnAmount = userLiquidity.liquidity;
+                                  const userShare = burnAmount / poolInfo.totalLiquidity;
+                                  const estimatedQU = Math.floor(poolInfo.reservedQuAmount * userShare);
+                                  const estimatedAsset = Math.floor(poolInfo.reservedAssetAmount * userShare);
+                                  setRemoveLiquidityForm({
+                                    ...removeLiquidityForm, 
+                                    burnLiquidity: burnAmount.toString(),
+                                    quAmountMin: Math.round(estimatedQU * 0.95).toString(),
+                                    assetAmountMin: Math.round(estimatedAsset * 0.95).toString()
+                                  });
+                                }}
                                 style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                               >
                                 MAX
@@ -1540,7 +1622,7 @@ Swapped: ${parseInt(swapForm.inputAmount).toLocaleString()} QU for ${assetName}
                             </label>
                             <input
                               type="number"
-                              placeholder="e.g. 900 (minimum QU you'll accept)"
+                              placeholder="Auto-suggested at 95% of estimated"
                               value={removeLiquidityForm.quAmountMin}
                               onChange={(e) => setRemoveLiquidityForm({...removeLiquidityForm, quAmountMin: e.target.value})}
                               style={{
@@ -1555,7 +1637,7 @@ Swapped: ${parseInt(swapForm.inputAmount).toLocaleString()} QU for ${assetName}
                               required
                             />
                             <small style={{ display: 'block', marginTop: '0.25rem', color: '#9ca3af', fontSize: '0.8rem' }}>
-                              Minimum QU you'll accept (recommended: 95% of estimated amount)
+                              Minimum QU you'll accept (auto-set at 95%, you can adjust)
                             </small>
                           </div>
                           
@@ -1565,7 +1647,7 @@ Swapped: ${parseInt(swapForm.inputAmount).toLocaleString()} QU for ${assetName}
                             </label>
                             <input
                               type="number"
-                              placeholder={`e.g. 90 (minimum ${assetName} you'll accept)`}
+                              placeholder="Auto-suggested at 95% of estimated"
                               value={removeLiquidityForm.assetAmountMin}
                               onChange={(e) => setRemoveLiquidityForm({...removeLiquidityForm, assetAmountMin: e.target.value})}
                               style={{
@@ -1580,7 +1662,7 @@ Swapped: ${parseInt(swapForm.inputAmount).toLocaleString()} QU for ${assetName}
                               required
                             />
                             <small style={{ display: 'block', marginTop: '0.25rem', color: '#9ca3af', fontSize: '0.8rem' }}>
-                              Minimum {assetName} you'll accept (recommended: 95% of estimated amount)
+                              Minimum {assetName} you'll accept (auto-set at 95%, you can adjust)
                             </small>
                           </div>
                           
