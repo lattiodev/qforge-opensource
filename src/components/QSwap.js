@@ -35,7 +35,7 @@ function QSwap() {
   const [issueForm, setIssueForm] = useState({
     assetName: '',
     numberOfShares: '',
-    unitOfMeasurement: '',
+    unitOfMeasurement: 'TOKENS',
     numberOfDecimalPlaces: ''
   });
   
@@ -222,7 +222,16 @@ function QSwap() {
     setLoading(true);
     try {
       const assetNameUint64 = assetNameToUint64(issueForm.assetName);
-      const uomUint64 = assetNameToUint64(issueForm.unitOfMeasurement);
+      const uomUint64 = assetNameToUint64('TOKENS'); // Always use TOKENS
+      
+      console.log('Issuing asset with params:', {
+        assetName: issueForm.assetName,
+        assetNameUint64,
+        numberOfShares: issueForm.numberOfShares,
+        unitOfMeasurement: 'TOKENS',
+        uomUint64,
+        numberOfDecimalPlaces: parseInt(issueForm.numberOfDecimalPlaces)
+      });
       
       const result = await issueAsset(
         qubicConnect,
@@ -232,14 +241,34 @@ function QSwap() {
         parseInt(issueForm.numberOfDecimalPlaces)
       );
       
-      setMessage(`Asset issued successfully! TX: ${result.txHash}`);
-      setIssueForm({
-        assetName: '',
-        numberOfShares: '',
-        unitOfMeasurement: '',
-        numberOfDecimalPlaces: ''
-      });
+      console.log('Asset issuance result:', result);
+      
+      if (result.success) {
+        setMessage(`🎉 Asset "${issueForm.assetName}" issued successfully! 
+
+Issuing token - please refresh in 30 seconds and check your balance on the left to see if the token was issued.
+
+📋 Transaction Details:
+• Asset Name: ${issueForm.assetName}
+• Total Supply: ${parseInt(issueForm.numberOfShares).toLocaleString()} TOKENS
+• Decimal Places: ${issueForm.numberOfDecimalPlaces}
+• Transaction ID: ${result.txHash}
+• Issuer: ${qubicConnect.wallet.publicKey}
+
+You can now create a pool for this asset!`);
+        
+        // Reset form
+        setIssueForm({
+          assetName: '',
+          numberOfShares: '',
+          unitOfMeasurement: 'TOKENS',
+          numberOfDecimalPlaces: ''
+        });
+      } else {
+        setMessage(`Error issuing asset: ${result.error || 'Unknown error'}`);
+      }
     } catch (error) {
+      console.error('Asset issuance error:', error);
       setMessage(`Error: ${error.message}`);
     }
     setLoading(false);
@@ -619,40 +648,89 @@ function QSwap() {
         {activeTab === 'issue' && (
           <div className="issue-section">
             <h2>Issue New Asset</h2>
+            <div className="asset-info">
+              <p><strong>Create a new digital asset on the Qubic network.</strong></p>
+              <p>Note: Asset issuance requires a fee of {fees ? fees.assetIssuanceFee?.toLocaleString() : 'Loading...'} QU</p>
+            </div>
+            
             <form onSubmit={handleIssueAsset}>
-              <input
-                type="text"
-                placeholder="Asset Name (max 8 chars)"
-                value={issueForm.assetName}
-                onChange={(e) => setIssueForm({...issueForm, assetName: e.target.value})}
-                maxLength={8}
-                required
-              />
-              <input
-                type="number"
-                placeholder="Number of Shares"
-                value={issueForm.numberOfShares}
-                onChange={(e) => setIssueForm({...issueForm, numberOfShares: e.target.value})}
-                required
-              />
-              <input
-                type="text"
-                placeholder="Unit of Measurement"
-                value={issueForm.unitOfMeasurement}
-                onChange={(e) => setIssueForm({...issueForm, unitOfMeasurement: e.target.value})}
-                maxLength={7}
-                required
-              />
-              <input
-                type="number"
-                placeholder="Decimal Places"
-                value={issueForm.numberOfDecimalPlaces}
-                onChange={(e) => setIssueForm({...issueForm, numberOfDecimalPlaces: e.target.value})}
-                min="0"
-                max="10"
-                required
-              />
-              <button type="submit" disabled={loading}>Issue Asset</button>
+              <div className="form-field">
+                <label htmlFor="assetName">Asset Name *</label>
+                <input
+                  id="assetName"
+                  type="text"
+                  placeholder="e.g., TESTCOIN, MYTOKEN"
+                  value={issueForm.assetName}
+                  onChange={(e) => setIssueForm({...issueForm, assetName: e.target.value})}
+                  maxLength={8}
+                  required
+                />
+                <small>Maximum 8 characters. This is your asset's unique identifier.</small>
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="numberOfShares">Total Supply *</label>
+                <input
+                  id="numberOfShares"
+                  type="number"
+                  placeholder="e.g., 1000000 (1 million)"
+                  value={issueForm.numberOfShares}
+                  onChange={(e) => setIssueForm({...issueForm, numberOfShares: e.target.value})}
+                  min="1"
+                  required
+                />
+                <small>Total number of units/shares to create. Cannot be changed after issuance.</small>
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="unitOfMeasurement">Unit of Measurement *</label>
+                <input
+                  id="unitOfMeasurement"
+                  type="text"
+                  value="TOKENS"
+                  disabled
+                  style={{ opacity: 0.7, cursor: 'not-allowed' }}
+                />
+                <small>Fixed as "TOKENS" for consistency across all assets.</small>
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="numberOfDecimalPlaces">Decimal Places *</label>
+                <select
+                  id="numberOfDecimalPlaces"
+                  value={issueForm.numberOfDecimalPlaces}
+                  onChange={(e) => setIssueForm({...issueForm, numberOfDecimalPlaces: e.target.value})}
+                  required
+                >
+                  <option value="">Select decimal places</option>
+                  <option value="0">0 (whole numbers only: 1, 2, 3...)</option>
+                  <option value="1">1 (0.1 precision: 1.0, 1.1, 1.2...)</option>
+                  <option value="2">2 (0.01 precision: 1.00, 1.01, 1.02...)</option>
+                  <option value="3">3 (0.001 precision: 1.000, 1.001...)</option>
+                  <option value="4">4 (0.0001 precision)</option>
+                  <option value="5">5 (0.00001 precision)</option>
+                  <option value="6">6 (0.000001 precision)</option>
+                  <option value="8">8 (like Bitcoin: 0.00000001)</option>
+                </select>
+                <small>How many decimal places your asset can be divided into. Common choices: 0 (whole units), 2 (like USD cents), 8 (like Bitcoin).</small>
+              </div>
+
+              <div className="form-examples">
+                <h4>Examples:</h4>
+                <div className="example">
+                  <strong>Gaming Token:</strong> Name: GAMETKN, Supply: 10000000, Unit: TOKENS, Decimals: 0
+                </div>
+                <div className="example">
+                  <strong>Stablecoin:</strong> Name: MYSTABLE, Supply: 1000000, Unit: TOKENS, Decimals: 2
+                </div>
+                <div className="example">
+                  <strong>Utility Token:</strong> Name: UTILITY, Supply: 500000, Unit: TOKENS, Decimals: 3
+                </div>
+              </div>
+
+              <button type="submit" disabled={loading}>
+                {loading ? 'Issuing Asset...' : 'Issue Asset'}
+              </button>
             </form>
           </div>
         )}
