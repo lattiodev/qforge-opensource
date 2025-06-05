@@ -31,9 +31,10 @@ export const makeJsonData = (contractIndex, functionIndex, inputSize, requestDat
  * @param {Array} inputFields - Input field definitions
  * @param {Object} selectedFunction - Complete function definition
  * @param {Object} customIndexes - Custom indexes for contract
+ * @param {Object} qHelper - QubicHelper instance for encoding IDs
  * @returns {Promise<Object>} Query result
  */
-export async function queryContract(httpEndpoint, contractIndex, functionIndex, params = {}, inputFields = [], selectedFunction = null, customIndexes = null) {
+export async function queryContract(httpEndpoint, contractIndex, functionIndex, params = {}, inputFields = [], selectedFunction = null, customIndexes = null, qHelper = null) {
   console.log(`Query contract called with: ${contractIndex}, function: ${functionIndex}`);
   
   let contractIdxNum = contractIndex;
@@ -42,7 +43,7 @@ export async function queryContract(httpEndpoint, contractIndex, functionIndex, 
     contractIdxNum = getContractIndex(contractIndex, customIndexes);
   }
 
-  const encodedData = encodeParams(params, inputFields);
+  const encodedData = encodeParams(params, inputFields, qHelper);
   const inputSize = encodedData ? Buffer.from(base64.decode(encodedData), 'binary').length : 0;
   const queryData = makeJsonData(contractIdxNum, functionIndex, inputSize, encodedData);
 
@@ -57,11 +58,16 @@ export async function queryContract(httpEndpoint, contractIndex, functionIndex, 
       url = `/api/proxy/v1/querySmartContract`;
     }
     
+    console.log('[contractApi] Making request to URL:', url);
+    console.log('[contractApi] Request payload:', JSON.stringify(queryData, null, 2));
+    
     const response = await fetch(url, {
       method: 'POST',
       headers: HEADERS,
       body: JSON.stringify(queryData),
     });
+
+    console.log('[contractApi] Response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -69,10 +75,54 @@ export async function queryContract(httpEndpoint, contractIndex, functionIndex, 
     }
 
     const json = await response.json();
+    console.log('[contractApi] Raw JSON response:', JSON.stringify(json, null, 2));
+    
+    // Check if responseData exists and log its details
+    if (json.responseData) {
+      console.log('[contractApi] ResponseData exists, length:', json.responseData.length);
+      console.log('[contractApi] ResponseData preview:', json.responseData.substring(0, 100));
+    } else {
+      console.log('[contractApi] ResponseData is missing or empty!');
+      console.log('[contractApi] Full response keys:', Object.keys(json));
+      
+      // If proxy returns empty data, try direct call as fallback
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[contractApi] Proxy returned empty data, trying direct call...');
+        
+        const directUrl = `${endpoint}/v1/querySmartContract`;
+        console.log('[contractApi] Trying direct URL:', directUrl);
+        
+        try {
+          const directResponse = await fetch(directUrl, {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify(queryData),
+          });
+          
+          if (directResponse.ok) {
+            const directJson = await directResponse.json();
+            console.log('[contractApi] Direct call response:', JSON.stringify(directJson, null, 2));
+            
+            if (directJson.responseData) {
+              console.log('[contractApi] Direct call has responseData! Using it.');
+              return {
+                ...decodeContractResponse(directJson.responseData, selectedFunction?.outputs || []),
+                rawResponse: directJson
+              };
+            }
+          }
+        } catch (directError) {
+          console.log('[contractApi] Direct call also failed:', directError.message);
+        }
+      }
+    }
+    
     const decodedResponse = decodeContractResponse(
       json.responseData,
       selectedFunction?.outputs || []
     );
+    
+    console.log('[contractApi] Decoded response:', decodedResponse);
     
     return {
       ...decodedResponse,

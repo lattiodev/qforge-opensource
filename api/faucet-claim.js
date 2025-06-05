@@ -21,7 +21,7 @@ const FAUCET_CONFIG = {
     testnet: {
         seed: process.env.FAUCET_TESTNET_SEED,
         rpc: process.env.FAUCET_TESTNET_RPC || 'https://testnet-rpc.qubicdev.com/', // Using official for backend
-        amount: 1000000n, // BigInt for amount
+        amount: 1500000000n, // BigInt for amount
         label: "Testnet",
         enabled: !!process.env.FAUCET_TESTNET_SEED
     }

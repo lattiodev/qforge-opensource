@@ -1,0 +1,11 @@
+[
+  {
+    "id": "pool_1",
+    "assetName": "QSWAP0",
+    "assetIssuer": "QFWAPCCDUOMNYCVXNGXUJQQUHPEBOUTCWXPHGCNIADQIOAJAYACSYEEDLWWA",
+    "description": "Test coin for demonstrating QSwap functionality",
+    "status": "active",
+    "addedBy": "Ecosystem Team",
+    "dateAdded": "2025-06-03"
+  }
+] 
