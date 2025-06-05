@@ -86,7 +86,7 @@ const ContractUI = () => {
   const formattedBalance = useMemo(() => {
     if (!contextBalance) return null;
     try {
-      const balanceInQubic = BigInt(contextBalance) / 1_000_000n;
+      const balanceInQubic = BigInt(contextBalance);
       return balanceInQubic.toLocaleString();
     } catch {
       return null;
