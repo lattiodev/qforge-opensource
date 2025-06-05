@@ -661,6 +661,25 @@ Swapped: ${parseInt(swapForm.inputAmount).toLocaleString()} QU for ${assetName}
     <div className="qswap-container">
       <h1>QSwap DEX</h1>
       
+      {/* Testnet Disclaimer */}
+      <div style={{ 
+        background: '#1e3a8a', 
+        border: '2px solid #3b82f6', 
+        borderRadius: '8px', 
+        padding: '1rem', 
+        marginBottom: '1.5rem',
+        textAlign: 'center'
+      }}>
+        <h3 style={{ margin: '0 0 0.5rem 0', color: '#93c5fd', fontSize: '1.1rem' }}>
+          🧪 Testnet Only - Development Environment
+        </h3>
+        <p style={{ margin: '0', color: '#93c5fd', fontSize: '0.9rem', lineHeight: '1.4' }}>
+          <strong>QSwap currently only works on Qubic Testnet.</strong><br/>
+          Your RPC endpoint has been automatically switched to: <code style={{ background: '#374151', padding: '0.2rem 0.4rem', borderRadius: '4px', color: '#e5e7eb' }}>https://testnet-rpc.qubicdev.com/</code><br/>
+          <em>This is test money only - no real value. Perfect for learning and testing!</em>
+        </p>
+      </div>
+      
       {!isConnected && (
         <div className="warning-box">
           Please connect your wallet to use QSwap

@@ -79,7 +79,8 @@ const ContractUI = () => {
       broadcastTx, 
       getTick, 
       signTransaction,
-      contractIndexes
+      contractIndexes,
+      updateHttpEndpoint
   } = fullQubicConnectContext; 
 
   // Format balance for display
@@ -92,6 +93,16 @@ const ContractUI = () => {
       return null;
     }
   }, [contextBalance]);
+
+  // Auto-switch to testnet when QSwap is selected
+  useEffect(() => {
+    if (currentView === VIEWS.QSWAP) {
+      const testnetEndpoint = 'https://testnet-rpc.qubicdev.com/';
+      if (httpEndpoint !== testnetEndpoint) {
+        updateHttpEndpoint(testnetEndpoint);
+      }
+    }
+  }, [currentView, httpEndpoint, updateHttpEndpoint]);
 
   useEffect(() => {
     async function loadContractsList() {
