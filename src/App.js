@@ -9,11 +9,12 @@ import ConnectLink from './components/qubic/connect/ConnectLink';
 import ConfirmTxModal from './components/qubic/connect/ConfirmTxModal';
 import FaucetModal from './components/qubic/FaucetModal';
 import QSwap from './components/QSwap';
+import Nostromo from './components/Nostromo';
 import { 
     InformationCircleIcon, PlusIcon, MagnifyingGlassIcon, CheckCircleIcon, 
     CurrencyDollarIcon, CodeBracketIcon, BeakerIcon, Cog6ToothIcon,
     WalletIcon, PaperAirplaneIcon, ExclamationTriangleIcon, LinkIcon, ChevronUpIcon,
-    ArrowsUpDownIcon
+    ArrowsUpDownIcon, RocketLaunchIcon
 } from '@heroicons/react/24/outline';
 import './App.css';
 import EndpointSetting from './components/EndpointSetting';
@@ -22,10 +23,11 @@ import ContractIndexManager from './components/ContractIndexManager';
 // Create WalletContext to share with components
 export const WalletContext = createContext();
 
-// Define view constants - Add QSwap
+// Define view constants - Add QSwap and Nostromo
 const VIEWS = {
     CONTRACT_EXPLORER: 'contract_explorer',
     QSWAP: 'qswap',
+    NOSTROMO: 'nostromo',
 };
 
 // Component that uses the QubicConnect context
@@ -631,6 +633,17 @@ const ContractUI = () => {
                 <ArrowsUpDownIcon className="h-4 w-4 inline mr-1" />
                 QSwap
               </button>
+              <button
+                onClick={() => setCurrentView(VIEWS.NOSTROMO)}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  currentView === VIEWS.NOSTROMO
+                    ? 'bg-purple-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <RocketLaunchIcon className="h-4 w-4 inline mr-1" />
+                Nostromo
+              </button>
             </div>
             <button
               onClick={() => setShowFaucetModal(true)}
@@ -1086,6 +1099,10 @@ const ContractUI = () => {
                ) : currentView === VIEWS.QSWAP ? (
                  <div className="flex-grow">
                    <QSwap />
+                 </div>
+               ) : currentView === VIEWS.NOSTROMO ? (
+                 <div className="flex-grow">
+                   <Nostromo />
                  </div>
                ) : null} {/* End Main Content Area */}
           </div> {/* End Main Layout */}
