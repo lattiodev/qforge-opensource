@@ -9,7 +9,7 @@ import PropTypes from 'prop-types';
 
 // --- Faucet Constants (Copied from App.js) ---
 const MAINNET_FAUCET_AMOUNT = 1000n ; // 1,000 Qubic in qus
-const TESTNET_FAUCET_AMOUNT = 1000000n ; // 1,000,000 Qubic in qus
+const TESTNET_FAUCET_AMOUNT = 1500000000n ; // 1,500,000,000 Qubic in qus
 const FAUCET_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // Helper to get/set localStorage timestamps (Copied from App.js)
