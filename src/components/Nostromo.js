@@ -24,7 +24,8 @@ import {
   uint64ToTokenName,
   dateToQubicDate,
   getTierInfo,
-  calculatePoolShare
+  calculatePoolShare,
+  checkTransactionStatus
 } from '../utils/nostromoApi';
 
 function Nostromo() {
@@ -184,19 +185,93 @@ function Nostromo() {
     }
   };
 
+  const checkTransactionStatus = async (txId) => {
+    try {
+      setLoading(true);
+      showMessage(`Checking transaction ${txId.substring(0, 16)}...`, 'info');
+      
+      const endpoint = httpEndpoint || localStorage.getItem('httpEndpoint') || 'http://46.17.103.110:8000';
+      const response = await fetch(`${endpoint}/v1/transactions/${txId}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[Nostromo] Transaction status data:', data);
+        
+        if (data.transaction) {
+          showMessage(`Transaction found! Status: ${data.transaction.executed ? 'EXECUTED' : 'PENDING'}`, 'success');
+          
+          if (data.transaction.executed) {
+            // If executed, refresh user data
+            setTimeout(() => {
+              loadUserData();
+              showMessage('Transaction executed! Refreshing tier status...', 'success');
+            }, 2000);
+          }
+        } else {
+          showMessage('Transaction not found or still pending...', 'warning');
+        }
+      } else {
+        showMessage('Error checking transaction status', 'error');
+      }
+    } catch (error) {
+      console.error('[Nostromo] Error checking transaction:', error);
+      showMessage('Error checking transaction status', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRegisterInTier = async () => {
     if (!isConnected) {
       showMessage('Please connect your wallet first', 'error');
       return;
     }
 
+    // Debug logging
+    console.log('[Nostromo] handleRegisterInTier called with selectedTier:', selectedTier);
+    console.log('[Nostromo] NOSTROMO_TIERS[selectedTier]:', NOSTROMO_TIERS[selectedTier]);
+
     try {
       setLoading(true);
       const result = await registerInTier(qubicConnect, selectedTier);
       
-      if (result && result.success) {
-        showMessage(`Successfully registered in ${NOSTROMO_TIERS[selectedTier].name} tier!`);
-        loadUserData();
+      if (result && result.success && result.transactionId) {
+        const txId = result.transactionId;
+        showMessage(`Transaction broadcast successfully! TX ID: ${txId.substring(0, 16)}... Registering in ${NOSTROMO_TIERS[selectedTier].name} tier. Please wait 1-2 minutes for confirmation...`);
+        
+        // Monitor transaction status
+        const monitorTransaction = async () => {
+          try {
+            const endpoint = httpEndpoint || localStorage.getItem('httpEndpoint') || 'localhost:8080';
+            const txStatus = await checkTransactionStatus(txId);
+            
+            if (txStatus && txStatus.transaction) {
+              showMessage(`Transaction confirmed! Checking tier status...`, 'info');
+              loadUserData();
+              
+              // Final check after a bit more time
+              setTimeout(() => {
+                loadUserData();
+                showMessage(`Tier registration should be complete. If status hasn't updated, please refresh manually.`, 'info');
+              }, 15000);
+            } else {
+              showMessage(`Transaction still processing... Please wait or check manually.`, 'info');
+              setTimeout(() => {
+                loadUserData();
+              }, 30000);
+            }
+          } catch (error) {
+            console.error('Error monitoring transaction:', error);
+            showMessage(`Transaction broadcast complete. Please check status manually in 1-2 minutes.`, 'info');
+            setTimeout(() => {
+              loadUserData();
+            }, 60000);
+          }
+        };
+        
+        // Start monitoring after 30 seconds
+        setTimeout(monitorTransaction, 30000);
+        
       } else {
         showMessage(result?.error || 'Registration failed', 'error');
       }
@@ -415,6 +490,13 @@ function Nostromo() {
             </div>
             <div className="btn-group">
               <button 
+                className="btn btn-secondary" 
+                onClick={loadUserData}
+                disabled={loading}
+              >
+                🔄 Refresh Status
+              </button>
+              <button 
                 className="btn btn-danger" 
                 onClick={handleLogoutFromTier}
                 disabled={loading}
@@ -427,6 +509,15 @@ function Nostromo() {
           <div>
             <div className="tier-name">🚫 Not Registered</div>
             <p>Register in a tier to access Nostromo features</p>
+            <div className="btn-group">
+              <button 
+                className="btn btn-secondary" 
+                onClick={loadUserData}
+                disabled={loading}
+              >
+                🔄 Check Status
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -472,6 +563,15 @@ function Nostromo() {
         <h3>🛸 Choose Your Tier</h3>
         <p>Select a tier to stake QU and gain access to platform features</p>
         
+        {userTier === 0 && (
+          <div className="message info" style={{ marginBottom: '1rem' }}>
+            <strong>ℹ️ Registration Process:</strong><br />
+            After clicking register, your transaction will be broadcast to the network. 
+            It may take 1-2 minutes for the transaction to be processed and your tier status to update.
+            Use the "Check Status" button to manually refresh if needed.
+          </div>
+        )}
+        
         <div className="tier-grid">
           {Object.entries(NOSTROMO_TIERS).map(([tier, info]) => (
             <div 
@@ -509,6 +609,19 @@ function Nostromo() {
             </button>
           </div>
         )}
+        
+        {/* Transaction Checker */}
+        <div style={{ marginTop: '2rem', padding: '1rem', border: '1px solid #333', borderRadius: '8px' }}>
+          <h4>🔍 Check Last Transaction</h4>
+          <p>If your tier didn't update after registration, check your last transaction status:</p>
+          <button 
+            className="btn btn-secondary" 
+            onClick={() => checkTransactionStatus('szpbmxcoyeeuqcggpuyyprhbevmgmhilqaumindgghqgunkbyjfrszghjfxk')}
+            disabled={loading}
+          >
+            Check TX: szpb...xk (Latest)
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -574,99 +687,38 @@ function Nostromo() {
       </div>
 
       <h3>🗳️ Active Projects</h3>
-      <div className="projects-grid">
-        {projects.map((project) => (
-          <div key={project.index} className="project-card">
-            <div className="project-header">
-              <div className="project-name">
-                {uint64ToTokenName(project.tokenName)}
-              </div>
-              <div className="project-status status-voting">
-                🗳️ Voting
-              </div>
-            </div>
-            
-            <div>
-              <strong>Creator:</strong> {project.creator?.substring(0, 8)}...{project.creator?.substring(-8)}
-            </div>
-            <div>
-              <strong>Supply:</strong> {project.supplyOfToken?.toLocaleString()}
-            </div>
-            
-            <div className="project-votes">
-              <div className="vote-count vote-yes">
-                <div className="vote-number">{project.numberOfYes || 0}</div>
-                <div>YES</div>
-              </div>
-              <div className="vote-count vote-no">
-                <div className="vote-number">{project.numberOfNo || 0}</div>
-                <div>NO</div>
-              </div>
-            </div>
-            
-            {isConnected && userTier > 0 && (
-              <div className="btn-group">
-                <button 
-                  className="btn btn-primary" 
-                  onClick={() => handleVote(project.index, true)}
-                  disabled={loading}
-                >
-                  Vote YES
-                </button>
-                <button 
-                  className="btn btn-danger" 
-                  onClick={() => handleVote(project.index, false)}
-                  disabled={loading}
-                >
-                  Vote NO
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderFundraising = () => (
-    <div>
-      <h3>💰 Active Fundraisings</h3>
-      <div className="projects-grid">
-        {fundraisings.map((fundraising) => {
-          const progress = fundraising.requiredFunds > 0 
-            ? (fundraising.raisedFunds / fundraising.requiredFunds) * 100 
-            : 0;
-          
-          return (
-            <div key={fundraising.index} className="fundraising-card">
-              <div className="fundraising-header">
+      {projects.length === 0 ? (
+        <div className="message">
+          <p>No active projects found. Be the first to create one!</p>
+        </div>
+      ) : (
+        <div className="projects-grid">
+          {projects.filter(project => project && typeof project === 'object').map((project) => (
+            <div key={project.index} className="project-card">
+              <div className="project-header">
                 <div className="project-name">
-                  Fundraising #{fundraising.index}
+                  {uint64ToTokenName(project.tokenName)}
                 </div>
                 <div className="project-status status-voting">
-                  💰 Active
+                  🗳️ Voting
                 </div>
               </div>
               
               <div>
-                <strong>Token Price:</strong> {formatQU(fundraising.tokenPrice)}
+                <strong>Creator:</strong> {project.creator ? `${project.creator.substring(0, 8)}...${project.creator.substring(project.creator.length - 8)}` : 'Unknown'}
               </div>
               <div>
-                <strong>Required:</strong> {formatQU(fundraising.requiredFunds)}
-              </div>
-              <div>
-                <strong>TGE:</strong> {fundraising.TGE}%
+                <strong>Supply:</strong> {project.supplyOfToken ? project.supplyOfToken.toLocaleString() : 'N/A'}
               </div>
               
-              <div className="fundraising-progress">
-                <div className="progress-bar">
-                  <div 
-                    className="progress-fill" 
-                    style={{ width: `${Math.min(progress, 100)}%` }}
-                  />
+              <div className="project-votes">
+                <div className="vote-count vote-yes">
+                  <div className="vote-number">{project.numberOfYes || 0}</div>
+                  <div>YES</div>
                 </div>
-                <div className="progress-text">
-                  {formatQU(fundraising.raisedFunds)} / {formatQU(fundraising.requiredFunds)} ({progress.toFixed(1)}%)
+                <div className="vote-count vote-no">
+                  <div className="vote-number">{project.numberOfNo || 0}</div>
+                  <div>NO</div>
                 </div>
               </div>
               
@@ -674,20 +726,93 @@ function Nostromo() {
                 <div className="btn-group">
                   <button 
                     className="btn btn-primary" 
-                    onClick={() => {
-                      const amount = prompt('Enter investment amount (QU):');
-                      if (amount) handleInvest(fundraising.index, amount);
-                    }}
+                    onClick={() => handleVote(project.index, true)}
                     disabled={loading}
                   >
-                    Invest
+                    Vote YES
+                  </button>
+                  <button 
+                    className="btn btn-danger" 
+                    onClick={() => handleVote(project.index, false)}
+                    disabled={loading}
+                  >
+                    Vote NO
                   </button>
                 </div>
               )}
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderFundraising = () => (
+    <div>
+      <h3>💰 Active Fundraisings</h3>
+      {fundraisings.length === 0 ? (
+        <div className="message">
+          <p>No active fundraisings found.</p>
+        </div>
+      ) : (
+        <div className="projects-grid">
+          {fundraisings.filter(fundraising => fundraising && typeof fundraising === 'object').map((fundraising) => {
+            const progress = fundraising.requiredFunds && fundraising.requiredFunds > 0 
+              ? (fundraising.raisedFunds / fundraising.requiredFunds) * 100 
+              : 0;
+            
+            return (
+              <div key={fundraising.index} className="fundraising-card">
+                <div className="fundraising-header">
+                  <div className="project-name">
+                    Fundraising #{fundraising.index}
+                  </div>
+                  <div className="project-status status-voting">
+                    💰 Active
+                  </div>
+                </div>
+                
+                <div>
+                  <strong>Token Price:</strong> {formatQU(fundraising.tokenPrice)}
+                </div>
+                <div>
+                  <strong>Required:</strong> {formatQU(fundraising.requiredFunds)}
+                </div>
+                <div>
+                  <strong>TGE:</strong> {fundraising.TGE || 0}%
+                </div>
+                
+                <div className="fundraising-progress">
+                  <div className="progress-bar">
+                    <div 
+                      className="progress-fill" 
+                      style={{ width: `${Math.min(progress, 100)}%` }}
+                    />
+                  </div>
+                  <div className="progress-text">
+                    {formatQU(fundraising.raisedFunds)} / {formatQU(fundraising.requiredFunds)} ({progress.toFixed(1)}%)
+                  </div>
+                </div>
+                
+                {isConnected && userTier > 0 && (
+                  <div className="btn-group">
+                    <button 
+                      className="btn btn-primary" 
+                      onClick={() => {
+                        const amount = prompt('Enter investment amount (QU):');
+                        if (amount) handleInvest(fundraising.index, amount);
+                      }}
+                      disabled={loading}
+                    >
+                      Invest
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 

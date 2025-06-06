@@ -8,16 +8,16 @@ const NOSTROMO_ADDRESS = "NAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
 // NOSTROMO CONSTANTS
 export const NOSTROMO_TIERS = {
-  1: { name: 'FACEHUGGER', stake: 20000000, poolWeight: 55, unstakeFee: 5 },
-  2: { name: 'CHESTBURST', stake: 100000000, poolWeight: 300, unstakeFee: 4 },
-  3: { name: 'DOG', stake: 200000000, poolWeight: 750, unstakeFee: 3 },
-  4: { name: 'XENOMORPH', stake: 800000000, poolWeight: 3050, unstakeFee: 2 },
-  5: { name: 'WARRIOR', stake: 3200000000, poolWeight: 13750, unstakeFee: 1 }
+  1: { name: 'FACEHUGGER', stake: 20000000, poolWeight: 55, unstakeFee: 5 },    // 20M base units
+  2: { name: 'CHESTBURST', stake: 100000000, poolWeight: 300, unstakeFee: 4 },  // 100M base units  
+  3: { name: 'DOG', stake: 200000000, poolWeight: 750, unstakeFee: 3 },         // 200M base units
+  4: { name: 'XENOMORPH', stake: 800000000, poolWeight: 3050, unstakeFee: 2 },  // 800M base units
+  5: { name: 'WARRIOR', stake: 3200000000, poolWeight: 13750, unstakeFee: 1 }   // 3.2B base units
 };
 
 export const NOSTROMO_FEES = {
-  QX_TOKEN_ISSUANCE: 1000000000,
-  CREATE_PROJECT: 100000000
+  QX_TOKEN_ISSUANCE: 1000000000,  // 1B base units
+  CREATE_PROJECT: 100000000       // 100M base units
 };
 
 // NOSTROMO FUNCTIONS (view functions)
@@ -304,7 +304,13 @@ export async function getProjectIndexListByCreator(httpEndpoint, creator, qHelpe
 
 // Transaction Functions
 export async function registerInTier(qubicConnect, tierLevel) {
+  console.log('[Nostromo] registerInTier called with tierLevel:', tierLevel);
+  console.log('[Nostromo] tierLevel type:', typeof tierLevel);
+  
   const stakeAmount = NOSTROMO_TIERS[tierLevel].stake;
+  console.log('[Nostromo] stakeAmount for tierLevel', tierLevel, ':', stakeAmount);
+  console.log('[Nostromo] NOSTROMO_CONTRACT_INDEX value:', NOSTROMO_CONTRACT_INDEX);
+  console.log('[Nostromo] NOSTROMO_CONTRACT_INDEX type:', typeof NOSTROMO_CONTRACT_INDEX);
   
   const txDetails = {
     qubicConnect,
@@ -316,8 +322,12 @@ export async function registerInTier(qubicConnect, tierLevel) {
     ],
     amount: stakeAmount.toString(),
     sourceId: qubicConnect.wallet.publicKey,
-    destinationId: NOSTROMO_ADDRESS
+    destinationId: NOSTROMO_ADDRESS,
+    contractIndexes: null // Ensure we don't use string-based lookup for numeric index
   };
+  
+  console.log('[Nostromo] txDetails:', txDetails);
+  console.log('[Nostromo] About to call executeTransactionWithWallet with contractIndex:', txDetails.contractIndex);
   
   return await executeTransactionWithWallet(txDetails);
 }
@@ -482,6 +492,32 @@ export function formatQU(amount) {
   return (num / 1000000).toLocaleString() + ' M QU';
 }
 
+export async function checkTransactionStatus(httpEndpoint, transactionId) {
+  try {
+    const endpoint = formatEndpoint(httpEndpoint);
+    const response = await fetch(`${endpoint}/v1/transactions/${transactionId}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('[Nostromo] Transaction status:', data);
+      return data;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[Nostromo] Error checking transaction status:', error);
+    return null;
+  }
+}
+
+function formatEndpoint(endpoint) {
+  if (!endpoint) return '';
+  if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+    return endpoint;
+  }
+  return `http://${endpoint}`;
+}
+
 export function tokenNameToUint64(tokenName) {
   const paddedName = tokenName.padEnd(8, '\0').substring(0, 8);
   const encoder = new TextEncoder();
@@ -496,17 +532,26 @@ export function tokenNameToUint64(tokenName) {
 }
 
 export function uint64ToTokenName(uint64Value) {
-  const value = BigInt(uint64Value);
-  const bytes = [];
-  
-  for (let i = 0; i < 8; i++) {
-    const byte = Number((value >> BigInt(i * 8)) & 0xFFn);
-    if (byte === 0) break;
-    bytes.push(byte);
+  if (!uint64Value || uint64Value === '0' || uint64Value === 0) {
+    return 'N/A';
   }
   
-  const decoder = new TextDecoder();
-  return decoder.decode(new Uint8Array(bytes)).trim();
+  try {
+    const value = BigInt(uint64Value);
+    const bytes = [];
+    
+    for (let i = 0; i < 8; i++) {
+      const byte = Number((value >> BigInt(i * 8)) & 0xFFn);
+      if (byte === 0) break;
+      bytes.push(byte);
+    }
+    
+    const decoder = new TextDecoder();
+    return decoder.decode(new Uint8Array(bytes)).trim() || 'N/A';
+  } catch (error) {
+    console.error('Error converting uint64 to token name:', error);
+    return 'N/A';
+  }
 }
 
 export function dateToQubicDate(date) {
