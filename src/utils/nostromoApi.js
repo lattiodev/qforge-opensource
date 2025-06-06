@@ -3,7 +3,7 @@ import { queryContract, executeTransaction } from './contractApi';
 import { executeTransactionWithWallet } from './transactionApi';
 import { encodeParams, decodeContractResponse } from './contractUtils';
 
-const NOSTROMO_CONTRACT_INDEX = 14; // Nostromo.h is at position 13 (0-based) in contractsList.json
+const NOSTROMO_CONTRACT_INDEX = 13; 
 const NOSTROMO_ADDRESS = "NAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAML";
 
 // NOSTROMO CONSTANTS

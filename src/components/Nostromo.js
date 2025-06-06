@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import './Nostromo.css';
+import { WalletContext } from '../App';
 import {
   getStats,
   getTierLevelByUser,
@@ -30,9 +31,9 @@ function Nostromo() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-  const [qubicConnect, setQubicConnect] = useState(null);
-  const [userPublicKey, setUserPublicKey] = useState('');
+  
+  // Get wallet context from App.js
+  const { qubicConnect, isConnected, httpEndpoint } = useContext(WalletContext);
   
   // Platform data
   const [platformStats, setPlatformStats] = useState(null);
@@ -64,23 +65,14 @@ function Nostromo() {
   });
 
   useEffect(() => {
-    checkWalletConnection();
     loadPlatformData();
   }, []);
 
   useEffect(() => {
-    if (isConnected && userPublicKey) {
+    if (isConnected && qubicConnect?.wallet?.publicKey) {
       loadUserData();
     }
-  }, [isConnected, userPublicKey]);
-
-  const checkWalletConnection = () => {
-    if (window.qubicConnect && window.qubicConnect.isConnected) {
-      setQubicConnect(window.qubicConnect);
-      setIsConnected(true);
-      setUserPublicKey(window.qubicConnect.wallet.publicKey);
-    }
-  };
+  }, [isConnected, qubicConnect?.wallet?.publicKey]);
 
   const showMessage = (text, type = 'success') => {
     setMessage({ text, type });
@@ -98,7 +90,7 @@ function Nostromo() {
   const loadPlatformData = async () => {
     try {
       setLoading(true);
-      const endpoint = formatEndpoint(localStorage.getItem('httpEndpoint') || 'localhost:8080');
+      const endpoint = formatEndpoint(httpEndpoint || localStorage.getItem('httpEndpoint') || 'localhost:8080');
       
       const statsResult = await getStats(endpoint);
       if (statsResult && statsResult.success) {
@@ -118,7 +110,7 @@ function Nostromo() {
 
   const loadProjectsData = async () => {
     try {
-      const endpoint = formatEndpoint(localStorage.getItem('httpEndpoint') || 'localhost:8080');
+      const endpoint = formatEndpoint(httpEndpoint || localStorage.getItem('httpEndpoint') || 'localhost:8080');
       const projectsData = [];
       const fundraisingsData = [];
       
@@ -158,7 +150,10 @@ function Nostromo() {
 
   const loadUserData = async () => {
     try {
-      const endpoint = formatEndpoint(localStorage.getItem('httpEndpoint') || 'localhost:8080');
+      const endpoint = formatEndpoint(httpEndpoint || localStorage.getItem('httpEndpoint') || 'localhost:8080');
+      const userPublicKey = qubicConnect?.wallet?.publicKey;
+      
+      if (!userPublicKey) return;
       
       // Get user tier
       const tierResult = await getTierLevelByUser(endpoint, userPublicKey);
