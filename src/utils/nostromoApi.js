@@ -160,7 +160,16 @@ export async function getProjectByIndex(httpEndpoint, indexOfProject, qHelper = 
     qHelper
   );
   
-  console.log('[Nostromo] Project result:', result);
+  console.log('[Nostromo] Raw project result for index', indexOfProject, ':', result);
+  if (result && result.rawResponseData) {
+    console.log('[Nostromo] Raw response data:', result.rawResponseData);
+  }
+  if (result && result.decodedFields) {
+    console.log('[Nostromo] Decoded fields:', result.decodedFields);
+    console.log('[Nostromo] Decoded fields keys:', Object.keys(result.decodedFields));
+    console.log('[Nostromo] Decoded fields values:', Object.values(result.decodedFields));
+  }
+  
   return result;
 }
 
@@ -206,7 +215,14 @@ export async function getFundarasingByIndex(httpEndpoint, indexOfFundarasing, qH
     qHelper
   );
   
-  console.log('[Nostromo] Fundraising result:', result);
+  console.log('[Nostromo] Raw fundraising result for index', indexOfFundarasing, ':', result);
+  if (result && result.rawResponseData) {
+    console.log('[Nostromo] Raw fundraising response data:', result.rawResponseData);
+  }
+  if (result && result.decodedFields) {
+    console.log('[Nostromo] Decoded fundraising fields:', result.decodedFields);
+  }
+  
   return result;
 }
 
@@ -518,6 +534,49 @@ export function formatQU(amount) {
   if (!amount) return '0 QU';
   const num = typeof amount === 'string' ? parseInt(amount) : amount;
   return (num / 1000000).toLocaleString() + ' M QU';
+}
+
+export function isValidProject(project) {
+  console.log('[nostromoApi] isValidProject called with:', project);
+  
+  if (!project) {
+    console.log('[nostromoApi] isValidProject: project is null/undefined');
+    return false;
+  }
+  
+  // Check creator
+  const hasValidCreator = project.creator && 
+         project.creator !== '0000000000000000000000000000000000000000000000000000000000000000';
+  console.log('[nostromoApi] isValidProject: creator check:', hasValidCreator, 'creator:', project.creator);
+  
+  // Check token name
+  const hasValidTokenName = project.tokenName && 
+         project.tokenName !== '0' && 
+         project.tokenName !== 0;
+  console.log('[nostromoApi] isValidProject: tokenName check:', hasValidTokenName, 'tokenName:', project.tokenName);
+  
+  // Check supply
+  const hasValidSupply = project.supplyOfToken && 
+         project.supplyOfToken !== '0' && 
+         project.supplyOfToken !== 0;
+  console.log('[nostromoApi] isValidProject: supply check:', hasValidSupply, 'supply:', project.supplyOfToken);
+  
+  const isValid = hasValidCreator && hasValidTokenName && hasValidSupply;
+  console.log('[nostromoApi] isValidProject: final result:', isValid);
+  
+  return isValid;
+}
+
+export function isValidFundraising(fundraising) {
+  if (!fundraising) return false;
+  
+  // Check if fundraising has real data
+  return fundraising.tokenPrice && 
+         fundraising.tokenPrice !== '0' && 
+         fundraising.tokenPrice !== 0 &&
+         fundraising.requiredFunds && 
+         fundraising.requiredFunds !== '0' && 
+         fundraising.requiredFunds !== 0;
 }
 
 export async function checkTransactionStatus(httpEndpoint, transactionId) {

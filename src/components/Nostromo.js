@@ -26,7 +26,9 @@ import {
   dateToQubicDate,
   getTierInfo,
   calculatePoolShare,
-  checkTransactionStatus
+  checkTransactionStatus,
+  isValidProject,
+  isValidFundraising
 } from '../utils/nostromoApi';
 
 function Nostromo() {
@@ -110,8 +112,16 @@ function Nostromo() {
       console.log('[Nostromo] loadPlatformData - qHelper:', qHelper);
       
       const statsResult = await getStats(endpoint, qHelper);
+      console.log('[Nostromo] Raw stats result:', statsResult);
+      
       if (statsResult && statsResult.success) {
+        console.log('[Nostromo] Platform stats decoded:', statsResult.decodedFields);
+        console.log('[Nostromo] Number of created projects:', statsResult.decodedFields?.numberOfCreatedProject);
+        console.log('[Nostromo] Number of registered users:', statsResult.decodedFields?.numberOfRegister);
+        console.log('[Nostromo] Number of fundraisings:', statsResult.decodedFields?.numberOfFundaraising);
         setPlatformStats(statsResult.decodedFields);
+      } else {
+        console.log('[Nostromo] Failed to get platform stats');
       }
       
       // Load some sample projects and fundraisings
@@ -128,6 +138,20 @@ function Nostromo() {
   const loadProjectsData = async () => {
     try {
       const endpoint = formatEndpoint(httpEndpoint || localStorage.getItem('httpEndpoint') || 'localhost:8080');
+      
+      // First check platform stats to see if any projects exist
+      if (platformStats) {
+        console.log('[Nostromo] Platform stats show', platformStats.numberOfCreatedProject, 'created projects');
+        if (platformStats.numberOfCreatedProject === 0) {
+          console.log('[Nostromo] No projects exist according to platform stats, skipping project loading');
+          setProjects([]);
+          setFundraisings([]);
+          return;
+        }
+      } else {
+        console.log('[Nostromo] Platform stats not available yet');
+      }
+      
       const projectsData = [];
       const fundraisingsData = [];
       
@@ -135,27 +159,61 @@ function Nostromo() {
       for (let i = 0; i < 10; i++) {
         try {
           const projectResult = await getProjectByIndex(endpoint, i, qHelper);
+          console.log(`[Nostromo] Raw project result for index ${i}:`, projectResult);
+          
           if (projectResult && projectResult.success && projectResult.decodedFields) {
-            projectsData.push({ index: i, ...projectResult.decodedFields });
+            const project = projectResult.decodedFields;
+            console.log(`[Nostromo] Decoded project ${i}:`, project);
+            console.log(`[Nostromo] Project ${i} creator:`, project.creator);
+            console.log(`[Nostromo] Project ${i} tokenName:`, project.tokenName);
+            console.log(`[Nostromo] Project ${i} supplyOfToken:`, project.supplyOfToken);
+            console.log(`[Nostromo] Project ${i} validation result:`, isValidProject(project));
+            
+            // Only add projects that have actual data (not empty/default values)
+            if (isValidProject(project)) {
+              console.log(`[Nostromo] ✅ Adding valid project ${i}`);
+              projectsData.push({ index: i, ...project });
+            } else {
+              console.log(`[Nostromo] ❌ Skipping invalid project ${i}`);
+            }
+          } else {
+            console.log(`[Nostromo] No project result for index ${i}`);
           }
         } catch (error) {
-          // Project doesn't exist, continue
-          break;
+          // Project doesn't exist or error occurred, continue to next
+          console.log(`[Nostromo] Error loading project ${i}:`, error);
+          continue;
         }
       }
       
-      // Load fundraisings
+      // Load fundraisings with similar debugging
       for (let i = 0; i < 10; i++) {
         try {
           const fundraisingResult = await getFundarasingByIndex(endpoint, i, qHelper);
+          console.log(`[Nostromo] Raw fundraising result for index ${i}:`, fundraisingResult);
+          
           if (fundraisingResult && fundraisingResult.success && fundraisingResult.decodedFields) {
-            fundraisingsData.push({ index: i, ...fundraisingResult.decodedFields });
+            const fundraising = fundraisingResult.decodedFields;
+            console.log(`[Nostromo] Decoded fundraising ${i}:`, fundraising);
+            
+            // Only add fundraisings that have actual data
+            if (isValidFundraising(fundraising)) {
+              console.log(`[Nostromo] ✅ Adding valid fundraising ${i}`);
+              fundraisingsData.push({ index: i, ...fundraising });
+            } else {
+              console.log(`[Nostromo] ❌ Skipping invalid fundraising ${i}`);
+            }
           }
         } catch (error) {
           // Fundraising doesn't exist, continue
-          break;
+          console.log(`[Nostromo] Error loading fundraising ${i}:`, error);
+          continue;
         }
       }
+      
+      console.log('[Nostromo] Final results - Projects:', projectsData.length, 'Fundraisings:', fundraisingsData.length);
+      console.log('[Nostromo] Valid projects:', projectsData);
+      console.log('[Nostromo] Valid fundraisings:', fundraisingsData);
       
       setProjects(projectsData);
       setFundraisings(fundraisingsData);
@@ -1189,62 +1247,72 @@ function Nostromo() {
       ) : projects.length === 0 ? (
         <div className="message">
           <p>No projects available for voting at the moment.</p>
+          <p>Projects need to be created by Tier 4+ users before voting can begin.</p>
+          <small>Loaded {projects.length} projects from contract</small>
         </div>
       ) : (
         <div className="projects-grid">
-          {projects.filter(project => project && typeof project === 'object').map((project) => (
-            <div key={project.index} className="project-card">
-              <div className="project-header">
-                <div className="project-name">
-                  {uint64ToTokenName(project.tokenName)}
+          {projects.filter(project => project && typeof project === 'object').map((project) => {
+            // Add debugging info
+            console.log('[Nostromo] Rendering project:', project);
+            
+            return (
+              <div key={project.index} className="project-card">
+                <div className="project-header">
+                  <div className="project-name">
+                    {uint64ToTokenName(project.tokenName)}
+                  </div>
+                  <div className="project-status status-voting">
+                    🗳️ Voting Active
+                  </div>
                 </div>
-                <div className="project-status status-voting">
-                  🗳️ Voting Active
+                
+                <div>
+                  <strong>Creator:</strong> {project.creator ? `${project.creator.substring(0, 8)}...${project.creator.substring(project.creator.length - 8)}` : 'Unknown'}
+                </div>
+                <div>
+                  <strong>Supply:</strong> {project.supplyOfToken ? project.supplyOfToken.toLocaleString() : 'N/A'}
+                </div>
+                <div>
+                  <strong>Voting Period:</strong> Active
+                </div>
+                
+                <div className="project-votes">
+                  <div className="vote-count vote-yes">
+                    <div className="vote-number">{project.numberOfYes || 0}</div>
+                    <div>YES</div>
+                  </div>
+                  <div className="vote-count vote-no">
+                    <div className="vote-number">{project.numberOfNo || 0}</div>
+                    <div>NO</div>
+                  </div>
+                </div>
+                
+                {project.isCreatedFundarasing && (
+                  <div className="message success" style={{ fontSize: '0.8rem', margin: '0.5rem 0' }}>
+                    ✅ Fundraising Created - Check Fundraising tab!
+                  </div>
+                )}
+                
+                <div className="btn-group">
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={() => handleVote(project.index, true)}
+                    disabled={loading}
+                  >
+                    👍 Vote YES
+                  </button>
+                  <button 
+                    className="btn btn-danger" 
+                    onClick={() => handleVote(project.index, false)}
+                    disabled={loading}
+                  >
+                    👎 Vote NO
+                  </button>
                 </div>
               </div>
-              
-              <div>
-                <strong>Creator:</strong> {project.creator ? `${project.creator.substring(0, 8)}...${project.creator.substring(project.creator.length - 8)}` : 'Unknown'}
-              </div>
-              <div>
-                <strong>Supply:</strong> {project.supplyOfToken ? project.supplyOfToken.toLocaleString() : 'N/A'}
-              </div>
-              
-              <div className="project-votes">
-                <div className="vote-count vote-yes">
-                  <div className="vote-number">{project.numberOfYes || 0}</div>
-                  <div>YES</div>
-                </div>
-                <div className="vote-count vote-no">
-                  <div className="vote-number">{project.numberOfNo || 0}</div>
-                  <div>NO</div>
-                </div>
-              </div>
-              
-              {project.isCreatedFundarasing && (
-                <div className="message success" style={{ fontSize: '0.8rem', margin: '0.5rem 0' }}>
-                  ✅ Fundraising Created - Check Fundraising tab!
-                </div>
-              )}
-              
-              <div className="btn-group">
-                <button 
-                  className="btn btn-primary" 
-                  onClick={() => handleVote(project.index, true)}
-                  disabled={loading}
-                >
-                  👍 Vote YES
-                </button>
-                <button 
-                  className="btn btn-danger" 
-                  onClick={() => handleVote(project.index, false)}
-                  disabled={loading}
-                >
-                  👎 Vote NO
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -1270,11 +1338,16 @@ function Nostromo() {
         </div>
       ) : fundraisings.length === 0 ? (
         <div className="message">
-          <p>No active fundraisings found. Check back later or vote on projects to help them reach fundraising stage!</p>
+          <p>No active fundraisings found.</p>
+          <p>Fundraisings are created after projects pass the voting stage (YES &gt; NO votes).</p>
+          <p>Check back later or vote on projects to help them reach fundraising stage!</p>
+          <small>Loaded {fundraisings.length} fundraisings from contract</small>
         </div>
       ) : (
         <div className="projects-grid">
           {fundraisings.filter(fundraising => fundraising && typeof fundraising === 'object').map((fundraising) => {
+            console.log('[Nostromo] Rendering fundraising:', fundraising);
+            
             const progress = fundraising.requiredFunds && fundraising.requiredFunds > 0 
               ? (fundraising.raisedFunds / fundraising.requiredFunds) * 100 
               : 0;
