@@ -34,6 +34,14 @@ function Nostromo() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState(0);
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Reset initialization when component unmounts to allow fresh load on remount
+  useEffect(() => {
+    return () => {
+      setHasInitialized(false);
+    };
+  }, []);
   
   // Get wallet context from App.js
   const { qubicConnect, isConnected, httpEndpoint, qHelper } = useContext(WalletContext);
@@ -66,6 +74,15 @@ function Nostromo() {
     TGE: '20',
     stepOfVesting: '12'
   });
+  
+  // Tab loading state tracking
+  const [loadedTabs, setLoadedTabs] = useState({
+    dashboard: false,
+    tiers: false,
+    projects: false,
+    fundraising: false,
+    portfolio: false
+  });
 
   const showMessage = (text, type = 'success') => {
     setMessage({ text, type });
@@ -86,14 +103,21 @@ function Nostromo() {
       
       console.log('[Nostromo] loadPlatformData - qHelper:', qHelper);
       
+      // Add longer delay to prevent rapid API calls
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       const statsResult = await getStats(endpoint, qHelper);
-      if (statsResult && statsResult.success) {
+      if (statsResult && statsResult.success && statsResult.decodedFields) {
         setPlatformStats(statsResult.decodedFields);
+        console.log('[Nostromo] Platform stats set successfully:', statsResult.decodedFields);
+      } else {
+        console.warn('[Nostromo] Platform stats returned no data');
       }
       
     } catch (error) {
       console.error('Error loading platform data:', error);
       showMessage('Failed to load platform data', 'error');
+      throw error; // Re-throw to trigger finally block
     }
   };
 
@@ -103,9 +127,15 @@ function Nostromo() {
       const projectsData = [];
       const fundraisingsData = [];
       
-      // Load first 3 projects only (reduced to minimize API calls)
-      for (let i = 0; i < 3; i++) {
+      // Add longer delay before starting project loading
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Load only 1 project initially to minimize API calls
+      for (let i = 0; i < 1; i++) {
         try {
+          // Add delay between each project call
+          if (i > 0) await new Promise(resolve => setTimeout(resolve, 800));
+          
           const projectResult = await getProjectByIndex(endpoint, i, qHelper);
           if (projectResult && projectResult.success && projectResult.decodedFields) {
             const project = projectResult.decodedFields;
@@ -129,9 +159,15 @@ function Nostromo() {
         }
       }
       
-      // Load fundraisings (reduced to 3)
-      for (let i = 0; i < 3; i++) {
+      // Add delay before fundraisings
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Load only 1 fundraising initially
+      for (let i = 0; i < 1; i++) {
         try {
+          // Add delay between each fundraising call
+          if (i > 0) await new Promise(resolve => setTimeout(resolve, 800));
+          
           const fundraisingResult = await getFundarasingByIndex(endpoint, i, qHelper);
           if (fundraisingResult && fundraisingResult.success && fundraisingResult.decodedFields) {
             const fundraising = fundraisingResult.decodedFields;
@@ -170,33 +206,101 @@ function Nostromo() {
       console.log('[Nostromo] loadUserData - qHelper:', qHelper);
       console.log('[Nostromo] loadUserData - userPublicKey:', userPublicKey);
       
+      // Add much longer initial delay for user data loading
+      await new Promise(resolve => setTimeout(resolve, 4000));
+      
       // Get user tier
       const tierResult = await getTierLevelByUser(endpoint, userPublicKey, qHelper);
-      if (tierResult && tierResult.success) {
+      if (tierResult && tierResult.success && tierResult.decodedFields) {
         setUserTier(tierResult.decodedFields.tierLevel || 0);
+      } else {
+        console.warn('[Nostromo] User tier data returned no results, setting to 0');
+        setUserTier(0);
       }
+      
+      // Add longer delay between user data calls
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Get vote status  
       const voteResult = await getUserVoteStatus(endpoint, userPublicKey, qHelper);
-      if (voteResult && voteResult.success) {
+      if (voteResult && voteResult.success && voteResult.decodedFields) {
         setUserVoteStatus(voteResult.decodedFields);
+      } else {
+        console.warn('[Nostromo] User vote status returned no data');
       }
+      
+      // Add longer delay between user data calls
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Get investment stats
       const investmentResult = await getNumberOfInvestedAndClaimedProjects(endpoint, userPublicKey, qHelper);
-      if (investmentResult && investmentResult.success) {
+      if (investmentResult && investmentResult.success && investmentResult.decodedFields) {
         setUserInvestmentStats(investmentResult.decodedFields);
+      } else {
+        console.warn('[Nostromo] User investment stats returned no data');
       }
+      
+      // Add longer delay between user data calls  
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Get user's projects
       const userProjectsResult = await getProjectIndexListByCreator(endpoint, userPublicKey, qHelper);
-      if (userProjectsResult && userProjectsResult.success) {
+      if (userProjectsResult && userProjectsResult.success && userProjectsResult.decodedFields) {
         setUserProjects(userProjectsResult.decodedFields.indexListForProjects || []);
+      } else {
+        console.warn('[Nostromo] User projects returned no data');
+        setUserProjects([]);
       }
       
     } catch (error) {
       console.error('Error loading user data:', error);
     }
+  };
+
+  // Tab-specific loading functions
+  const loadTabData = async (tabName) => {
+    if (loadedTabs[tabName] || loading) {
+      console.log(`[Nostromo] Tab ${tabName} already loaded or currently loading`);
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      console.log(`[Nostromo] Loading data for tab: ${tabName}`);
+      
+      switch (tabName) {
+        case 'tiers':
+          if (isConnected) {
+            await loadUserData();
+          }
+          break;
+        case 'projects':
+          await loadProjectsData();
+          break;
+        case 'fundraising':
+          await loadProjectsData(); // Projects and fundraisings are loaded together
+          break;
+        case 'portfolio':
+          if (isConnected) {
+            await loadUserData();
+          }
+          break;
+        default:
+          break;
+      }
+      
+      setLoadedTabs(prev => ({ ...prev, [tabName]: true }));
+    } catch (error) {
+      console.error(`Error loading ${tabName} data:`, error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Enhanced tab click handler
+  const handleTabClick = (tabName) => {
+    setActiveTab(tabName);
+    loadTabData(tabName);
   };
 
   // Debounced refresh functions to prevent API spam
@@ -208,6 +312,7 @@ function Nostromo() {
     }
     setLastRefreshTime(now);
     showMessage('Refreshing user data...', 'info');
+    setLoadedTabs(prev => ({ ...prev, tiers: false, portfolio: false }));
     loadUserData();
   };
 
@@ -219,6 +324,7 @@ function Nostromo() {
     }
     setLastRefreshTime(now);
     showMessage('Refreshing projects...', 'info');
+    setLoadedTabs(prev => ({ ...prev, projects: false, fundraising: false }));
     loadProjectsData();
   };
 
@@ -1001,53 +1107,76 @@ function Nostromo() {
     </div>
   );
 
-  // useEffect hooks - placed after all function definitions to avoid temporal dead zone
+  // Remove this duplicate declaration - it's causing issues
+
+  // Load only dashboard data on initial mount
   useEffect(() => {
     let mounted = true;
     
-    const loadData = async () => {
-      if (loading) return; // Prevent multiple calls
+    const loadInitialData = async () => {
+      // Prevent React StrictMode double execution
+      if (window.nostromoDataLoading) {
+        console.log('[Nostromo] Already loading data globally, skipping...');
+        return;
+      }
+      
+      if (loading || hasInitialized) {
+        console.log('[Nostromo] Skipping initial load - already loading or initialized');
+        return;
+      }
       
       try {
+        console.log('[Nostromo] Loading initial dashboard data only...');
+        window.nostromoDataLoading = true;
         setLoading(true);
+        setHasInitialized(true);
+        
         if (mounted) {
+          // Only load platform stats initially for dashboard
           await loadPlatformData();
-          await loadProjectsData();
+          setLoadedTabs(prev => ({ ...prev, dashboard: true }));
+          console.log('[Nostromo] Initial dashboard data load completed');
         }
+      } catch (error) {
+        console.error('[Nostromo] Error in initial data load:', error);
       } finally {
         if (mounted) {
+          console.log('[Nostromo] Clearing loading state');
           setLoading(false);
+          window.nostromoDataLoading = false;
         }
       }
     };
     
-    // Only run once on mount or when endpoint/qHelper changes
-    if (httpEndpoint && qHelper) {
-      loadData();
+    // Only run if we have required values and haven't initialized yet
+    if (httpEndpoint && qHelper && !hasInitialized && !window.nostromoDataLoading) {
+      // Add small delay to ensure everything is ready
+      setTimeout(() => {
+        if (mounted) {
+          loadInitialData();
+        }
+      }, 100);
     }
     
     return () => {
       mounted = false;
     };
-  }, [httpEndpoint, qHelper]); // Only depend on actual values, not functions
+  }, [httpEndpoint, qHelper]);
 
+  // User data now loads on-demand when clicking tiers/portfolio tabs
+  // No automatic loading to prevent API spam
+  
+  // Fail-safe: Clear loading state if stuck
   useEffect(() => {
-    let mounted = true;
-    
-    const loadUserInfo = async () => {
-      if (loading) return;
+    if (loading) {
+      const timeout = setTimeout(() => {
+        console.log('[Nostromo] Fail-safe: Clearing stuck loading state');
+        setLoading(false);
+      }, 10000); // 10 second timeout
       
-      if (mounted && isConnected && qubicConnect?.wallet?.publicKey) {
-        await loadUserData();
-      }
-    };
-    
-    loadUserInfo();
-    
-    return () => {
-      mounted = false;
-    };
-  }, [isConnected, qubicConnect?.wallet?.publicKey]); // Remove loadUserData dependency
+      return () => clearTimeout(timeout);
+    }
+  }, [loading]);
 
   return (
     <div className="nostromo-container">
@@ -1063,31 +1192,31 @@ function Nostromo() {
       <div className="tabs">
         <button 
           className={activeTab === 'dashboard' ? 'active' : ''} 
-          onClick={() => setActiveTab('dashboard')}
+          onClick={() => handleTabClick('dashboard')}
         >
           🏠 Dashboard
         </button>
         <button 
           className={activeTab === 'tiers' ? 'active' : ''} 
-          onClick={() => setActiveTab('tiers')}
+          onClick={() => handleTabClick('tiers')}
         >
           👽 Tier Management
         </button>
         <button 
           className={activeTab === 'projects' ? 'active' : ''} 
-          onClick={() => setActiveTab('projects')}
+          onClick={() => handleTabClick('projects')}
         >
           🚀 Projects
         </button>
         <button 
           className={activeTab === 'fundraising' ? 'active' : ''} 
-          onClick={() => setActiveTab('fundraising')}
+          onClick={() => handleTabClick('fundraising')}
         >
           💰 Fundraising
         </button>
         <button 
           className={activeTab === 'portfolio' ? 'active' : ''} 
-          onClick={() => setActiveTab('portfolio')}
+          onClick={() => handleTabClick('portfolio')}
         >
           💼 Portfolio
         </button>
