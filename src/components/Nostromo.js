@@ -536,6 +536,51 @@ function Nostromo() {
                 {platformStats ? calculatePoolShare(userTier, platformStats.totalPoolWeight).toFixed(2) : 0}%
               </div>
             </div>
+            {/* Upgrade Section - prominently displayed */}
+            {userTier < 5 && (
+              <div className="tier-upgrade-prominent" style={{ 
+                background: 'linear-gradient(135deg, #1a3a1a, #2a4a2a)', 
+                border: '2px solid #00ff88', 
+                borderRadius: '12px', 
+                padding: '1rem', 
+                margin: '1rem 0',
+                textAlign: 'center'
+              }}>
+                <h4 style={{ color: '#00ff88', margin: '0 0 0.5rem 0' }}>⬆️ Upgrade Available!</h4>
+                {Object.entries(NOSTROMO_TIERS)
+                  .filter(([tier]) => parseInt(tier) === userTier + 1) // Show only next tier
+                  .map(([tier, info]) => {
+                    const currentTierInfo = getTierInfo(userTier);
+                    const upgradeCost = info.stake - currentTierInfo.stake;
+                    
+                    return (
+                      <div key={tier} style={{ marginBottom: '0.5rem' }}>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#fff' }}>
+                          👽 {info.name} (Tier {tier})
+                        </div>
+                        <div style={{ color: '#ccc', marginBottom: '0.5rem' }}>
+                          Cost: {formatQU(upgradeCost)} | +{info.poolWeight - currentTierInfo.poolWeight} Pool Weight
+                        </div>
+                        <button 
+                          className="btn btn-primary"
+                          onClick={() => handleUpgradeTier(parseInt(tier))}
+                          disabled={loading}
+                          style={{ 
+                            background: '#00ff88', 
+                            color: '#000', 
+                            fontWeight: 'bold',
+                            border: 'none',
+                            padding: '0.5rem 1rem'
+                          }}
+                        >
+                          {loading ? 'Upgrading...' : `⬆️ Upgrade to ${info.name}`}
+                        </button>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
             <div className="btn-group">
               <button 
                 className="btn btn-secondary" 
@@ -658,13 +703,7 @@ function Nostromo() {
           </div>
         )}
 
-        {/* Debug info */}
-        <div style={{ padding: '1rem', background: '#1a1a1a', margin: '1rem 0', borderRadius: '8px' }}>
-          <strong>Debug Info:</strong><br />
-          Current Tier: {userTier}<br />
-          Show Upgrade: {userTier > 0 && userTier < 5 ? 'YES' : 'NO'}<br />
-          Is Connected: {isConnected ? 'YES' : 'NO'}
-        </div>
+
 
         {userTier > 0 && userTier < 5 && (
           <div className="upgrade-section" style={{ border: '2px solid #00ff00', padding: '1rem', margin: '1rem 0' }}>
