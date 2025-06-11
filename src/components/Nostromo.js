@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import './Nostromo.css';
 import { WalletContext } from '../App';
 import {
@@ -33,6 +33,7 @@ function Nostromo() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState(0);
   
   // Get wallet context from App.js
   const { qubicConnect, isConnected, httpEndpoint, qHelper } = useContext(WalletContext);
@@ -66,16 +67,6 @@ function Nostromo() {
     stepOfVesting: '12'
   });
 
-  useEffect(() => {
-    loadPlatformData();
-  }, []);
-
-  useEffect(() => {
-    if (isConnected && qubicConnect?.wallet?.publicKey) {
-      loadUserData();
-    }
-  }, [isConnected, qubicConnect?.wallet?.publicKey]);
-
   const showMessage = (text, type = 'success') => {
     setMessage({ text, type });
     setTimeout(() => setMessage(''), 5000);
@@ -91,7 +82,6 @@ function Nostromo() {
 
   const loadPlatformData = async () => {
     try {
-      setLoading(true);
       const endpoint = formatEndpoint(httpEndpoint || localStorage.getItem('httpEndpoint') || 'localhost:8080');
       
       console.log('[Nostromo] loadPlatformData - qHelper:', qHelper);
@@ -101,14 +91,9 @@ function Nostromo() {
         setPlatformStats(statsResult.decodedFields);
       }
       
-      // Load some sample projects and fundraisings
-      await loadProjectsData();
-      
     } catch (error) {
       console.error('Error loading platform data:', error);
       showMessage('Failed to load platform data', 'error');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -118,8 +103,8 @@ function Nostromo() {
       const projectsData = [];
       const fundraisingsData = [];
       
-      // Load first 10 projects
-      for (let i = 0; i < 10; i++) {
+      // Load first 3 projects only (reduced to minimize API calls)
+      for (let i = 0; i < 3; i++) {
         try {
           const projectResult = await getProjectByIndex(endpoint, i, qHelper);
           if (projectResult && projectResult.success && projectResult.decodedFields) {
@@ -144,8 +129,8 @@ function Nostromo() {
         }
       }
       
-      // Load fundraisings
-      for (let i = 0; i < 10; i++) {
+      // Load fundraisings (reduced to 3)
+      for (let i = 0; i < 3; i++) {
         try {
           const fundraisingResult = await getFundarasingByIndex(endpoint, i, qHelper);
           if (fundraisingResult && fundraisingResult.success && fundraisingResult.decodedFields) {
@@ -191,7 +176,7 @@ function Nostromo() {
         setUserTier(tierResult.decodedFields.tierLevel || 0);
       }
       
-      // Get vote status
+      // Get vote status  
       const voteResult = await getUserVoteStatus(endpoint, userPublicKey, qHelper);
       if (voteResult && voteResult.success) {
         setUserVoteStatus(voteResult.decodedFields);
@@ -212,6 +197,29 @@ function Nostromo() {
     } catch (error) {
       console.error('Error loading user data:', error);
     }
+  };
+
+  // Debounced refresh functions to prevent API spam
+  const handleRefreshUserData = () => {
+    const now = Date.now();
+    if (now - lastRefreshTime < 3000) { // 3 second cooldown
+      showMessage('Please wait before refreshing again', 'warning');
+      return;
+    }
+    setLastRefreshTime(now);
+    showMessage('Refreshing user data...', 'info');
+    loadUserData();
+  };
+
+  const handleRefreshProjects = () => {
+    const now = Date.now();
+    if (now - lastRefreshTime < 3000) { // 3 second cooldown
+      showMessage('Please wait before refreshing again', 'warning');
+      return;
+    }
+    setLastRefreshTime(now);
+    showMessage('Refreshing projects...', 'info');
+    loadProjectsData();
   };
 
   const checkTransactionStatus = async (txId) => {
@@ -607,7 +615,7 @@ function Nostromo() {
             <div className="btn-group">
               <button 
                 className="btn btn-secondary" 
-                onClick={loadUserData}
+                onClick={handleRefreshUserData}
                 disabled={loading}
               >
                 🔄 Refresh Status
@@ -628,7 +636,7 @@ function Nostromo() {
             <div className="btn-group">
               <button 
                 className="btn btn-secondary" 
-                onClick={loadUserData}
+                onClick={handleRefreshUserData}
                 disabled={loading}
               >
                 🔄 Check Status
@@ -843,7 +851,7 @@ function Nostromo() {
           <p>No active projects found. Be the first to create one!</p>
           <button 
             className="btn btn-secondary" 
-            onClick={loadProjectsData}
+            onClick={handleRefreshProjects}
             disabled={loading}
           >
             🔄 Refresh Projects
@@ -992,6 +1000,54 @@ function Nostromo() {
       )}
     </div>
   );
+
+  // useEffect hooks - placed after all function definitions to avoid temporal dead zone
+  useEffect(() => {
+    let mounted = true;
+    
+    const loadData = async () => {
+      if (loading) return; // Prevent multiple calls
+      
+      try {
+        setLoading(true);
+        if (mounted) {
+          await loadPlatformData();
+          await loadProjectsData();
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+    
+    // Only run once on mount or when endpoint/qHelper changes
+    if (httpEndpoint && qHelper) {
+      loadData();
+    }
+    
+    return () => {
+      mounted = false;
+    };
+  }, [httpEndpoint, qHelper]); // Only depend on actual values, not functions
+
+  useEffect(() => {
+    let mounted = true;
+    
+    const loadUserInfo = async () => {
+      if (loading) return;
+      
+      if (mounted && isConnected && qubicConnect?.wallet?.publicKey) {
+        await loadUserData();
+      }
+    };
+    
+    loadUserInfo();
+    
+    return () => {
+      mounted = false;
+    };
+  }, [isConnected, qubicConnect?.wallet?.publicKey]); // Remove loadUserData dependency
 
   return (
     <div className="nostromo-container">

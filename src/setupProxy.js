@@ -10,7 +10,7 @@ module.exports = function(app) {
       pathRewrite: {
         '^/api/faucet-claim': '/faucet-claim', // Remove /api prefix before forwarding
       },
-      logLevel: 'debug',
+      logLevel: 'warn', // Reduced logging
     })
   );
 
@@ -29,7 +29,7 @@ module.exports = function(app) {
         proxyRes.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
         proxyRes.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept';
       },
-      logLevel: 'debug',
+      logLevel: 'warn', // Reduced logging
     })
   );
 }; 
