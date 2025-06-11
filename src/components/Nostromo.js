@@ -123,7 +123,20 @@ function Nostromo() {
         try {
           const projectResult = await getProjectByIndex(endpoint, i, qHelper);
           if (projectResult && projectResult.success && projectResult.decodedFields) {
-            projectsData.push({ index: i, ...projectResult.decodedFields.project });
+            const project = projectResult.decodedFields;
+            
+            // Validate project data - only add if it has real data
+            const isValidProject = project.creator && 
+                                 project.creator !== "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" &&
+                                 project.tokenName && 
+                                 project.tokenName !== '0' && 
+                                 project.tokenName !== 0 &&
+                                 project.supplyOfToken && 
+                                 project.supplyOfToken > 0;
+            
+            if (isValidProject) {
+              projectsData.push({ index: i, ...project });
+            }
           }
         } catch (error) {
           // Project doesn't exist, continue
@@ -136,7 +149,17 @@ function Nostromo() {
         try {
           const fundraisingResult = await getFundarasingByIndex(endpoint, i, qHelper);
           if (fundraisingResult && fundraisingResult.success && fundraisingResult.decodedFields) {
-            fundraisingsData.push({ index: i, ...fundraisingResult.decodedFields.fundarasing });
+            const fundraising = fundraisingResult.decodedFields;
+            
+            // Validate fundraising data - only add if it has real data
+            const isValidFundraising = fundraising.tokenPrice && 
+                                     fundraising.tokenPrice > 0 &&
+                                     fundraising.requiredFunds && 
+                                     fundraising.requiredFunds > 0;
+            
+            if (isValidFundraising) {
+              fundraisingsData.push({ index: i, ...fundraising });
+            }
           }
         } catch (error) {
           // Fundraising doesn't exist, continue
@@ -818,58 +841,69 @@ function Nostromo() {
       {projects.length === 0 ? (
         <div className="message">
           <p>No active projects found. Be the first to create one!</p>
+          <button 
+            className="btn btn-secondary" 
+            onClick={loadProjectsData}
+            disabled={loading}
+          >
+            🔄 Refresh Projects
+          </button>
         </div>
       ) : (
         <div className="projects-grid">
-          {projects.filter(project => project && typeof project === 'object').map((project) => (
-            <div key={project.index} className="project-card">
-              <div className="project-header">
-                <div className="project-name">
-                  {uint64ToTokenName(project.tokenName)}
+          {projects.map((project) => {
+            const tokenName = uint64ToTokenName(project.tokenName);
+            
+            return (
+              <div key={project.index} className="project-card">
+                <div className="project-header">
+                  <div className="project-name">
+                    {tokenName || `Project #${project.index}`}
+                  </div>
+                  <div className="project-status status-voting">
+                    🗳️ Voting
+                  </div>
                 </div>
-                <div className="project-status status-voting">
-                  🗳️ Voting
+                
+                <div>
+                  <strong>Creator:</strong> {project.creator ? `${project.creator.substring(0, 8)}...${project.creator.substring(project.creator.length - 8)}` : 'Unknown'}
                 </div>
+                <div>
+                  <strong>Supply:</strong> {project.supplyOfToken ? project.supplyOfToken.toLocaleString() : 'N/A'}
+                </div>
+                
+                <div className="project-votes">
+                  <div className="vote-count vote-yes">
+                    <div className="vote-number">{project.numberOfYes || 0}</div>
+                    <div>YES</div>
+                  </div>
+                  <div className="vote-count vote-no">
+                    <div className="vote-number">{project.numberOfNo || 0}</div>
+                    <div>NO</div>
+                  </div>
+                </div>
+                
+                {isConnected && userTier > 0 && (
+                  <div className="btn-group">
+                    <button 
+                      className="btn btn-primary" 
+                      onClick={() => handleVote(project.index, true)}
+                      disabled={loading}
+                    >
+                      Vote YES
+                    </button>
+                    <button 
+                      className="btn btn-danger" 
+                      onClick={() => handleVote(project.index, false)}
+                      disabled={loading}
+                    >
+                      Vote NO
+                    </button>
+                  </div>
+                )}
               </div>
-              
-              <div>
-                <strong>Creator:</strong> {project.creator ? `${project.creator.substring(0, 8)}...${project.creator.substring(project.creator.length - 8)}` : 'Unknown'}
-              </div>
-              <div>
-                <strong>Supply:</strong> {project.supplyOfToken ? project.supplyOfToken.toLocaleString() : 'N/A'}
-              </div>
-              
-              <div className="project-votes">
-                <div className="vote-count vote-yes">
-                  <div className="vote-number">{project.numberOfYes || 0}</div>
-                  <div>YES</div>
-                </div>
-                <div className="vote-count vote-no">
-                  <div className="vote-number">{project.numberOfNo || 0}</div>
-                  <div>NO</div>
-                </div>
-              </div>
-              
-              {isConnected && userTier > 0 && (
-                <div className="btn-group">
-                  <button 
-                    className="btn btn-primary" 
-                    onClick={() => handleVote(project.index, true)}
-                    disabled={loading}
-                  >
-                    Vote YES
-                  </button>
-                  <button 
-                    className="btn btn-danger" 
-                    onClick={() => handleVote(project.index, false)}
-                    disabled={loading}
-                  >
-                    Vote NO
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

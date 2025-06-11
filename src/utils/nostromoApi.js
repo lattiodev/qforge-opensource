@@ -134,16 +134,14 @@ export async function getProjectByIndex(httpEndpoint, indexOfProject, qHelper = 
   const selectedFunction = {
     name: 'getProjectByIndex',
     outputs: [
-      { name: 'project', type: 'struct', fields: [
-        { name: 'creator', type: 'id' },
-        { name: 'tokenName', type: 'uint64' },
-        { name: 'supplyOfToken', type: 'uint64' },
-        { name: 'startDate', type: 'uint32' },
-        { name: 'endDate', type: 'uint32' },
-        { name: 'numberOfYes', type: 'uint32' },
-        { name: 'numberOfNo', type: 'uint32' },
-        { name: 'isCreatedFundarasing', type: 'bit' }
-      ]}
+      { name: 'creator', type: 'id' },
+      { name: 'tokenName', type: 'uint64' },
+      { name: 'supplyOfToken', type: 'uint64' },
+      { name: 'startDate', type: 'uint32' },
+      { name: 'endDate', type: 'uint32' },
+      { name: 'numberOfYes', type: 'uint32' },
+      { name: 'numberOfNo', type: 'uint32' },
+      { name: 'isCreatedFundarasing', type: 'bit' }
     ]
   };
   
@@ -172,26 +170,24 @@ export async function getFundarasingByIndex(httpEndpoint, indexOfFundarasing, qH
   const selectedFunction = {
     name: 'getFundarasingByIndex',
     outputs: [
-      { name: 'fundarasing', type: 'struct', fields: [
-        { name: 'tokenPrice', type: 'uint64' },
-        { name: 'soldAmount', type: 'uint64' },
-        { name: 'requiredFunds', type: 'uint64' },
-        { name: 'raisedFunds', type: 'uint64' },
-        { name: 'indexOfProject', type: 'uint32' },
-        { name: 'firstPhaseStartDate', type: 'uint32' },
-        { name: 'firstPhaseEndDate', type: 'uint32' },
-        { name: 'secondPhaseStartDate', type: 'uint32' },
-        { name: 'secondPhaseEndDate', type: 'uint32' },
-        { name: 'thirdPhaseStartDate', type: 'uint32' },
-        { name: 'thirdPhaseEndDate', type: 'uint32' },
-        { name: 'listingStartDate', type: 'uint32' },
-        { name: 'cliffEndDate', type: 'uint32' },
-        { name: 'vestingEndDate', type: 'uint32' },
-        { name: 'threshold', type: 'uint8' },
-        { name: 'TGE', type: 'uint8' },
-        { name: 'stepOfVesting', type: 'uint8' },
-        { name: 'isCreatedToken', type: 'bit' }
-      ]}
+      { name: 'tokenPrice', type: 'uint64' },
+      { name: 'soldAmount', type: 'uint64' },
+      { name: 'requiredFunds', type: 'uint64' },
+      { name: 'raisedFunds', type: 'uint64' },
+      { name: 'indexOfProject', type: 'uint32' },
+      { name: 'firstPhaseStartDate', type: 'uint32' },
+      { name: 'firstPhaseEndDate', type: 'uint32' },
+      { name: 'secondPhaseStartDate', type: 'uint32' },
+      { name: 'secondPhaseEndDate', type: 'uint32' },
+      { name: 'thirdPhaseStartDate', type: 'uint32' },
+      { name: 'thirdPhaseEndDate', type: 'uint32' },
+      { name: 'listingStartDate', type: 'uint32' },
+      { name: 'cliffEndDate', type: 'uint32' },
+      { name: 'vestingEndDate', type: 'uint32' },
+      { name: 'threshold', type: 'uint8' },
+      { name: 'TGE', type: 'uint8' },
+      { name: 'stepOfVesting', type: 'uint8' },
+      { name: 'isCreatedToken', type: 'bit' }
     ]
   };
   
