@@ -96,7 +96,7 @@ const ContractUI = () => {
     }
   }, [contextBalance]);
 
-  // Auto-switch to testnet when QSwap is selected (run only once when view changes)
+  // Auto-switch to testnet when QSwap is selected
   useEffect(() => {
     if (currentView === VIEWS.QSWAP) {
       const testnetEndpoint = 'https://testnet-rpc.qubicdev.com/';
@@ -104,7 +104,7 @@ const ContractUI = () => {
         updateHttpEndpoint(testnetEndpoint);
       }
     }
-  }, [currentView]); // Only depend on view change, not endpoint
+  }, [currentView, httpEndpoint, updateHttpEndpoint]);
 
   useEffect(() => {
     async function loadContractsList() {
@@ -155,7 +155,7 @@ const ContractUI = () => {
     loadContracts();
   }, []);
 
-  const fetchContractFees = async () => {
+  const fetchContractFees = useCallback(async () => {
     if (!selectedContract || !httpEndpoint) return;
     setIsLoading(true);
     try {
@@ -171,13 +171,11 @@ const ContractUI = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedContract, httpEndpoint]);
 
   useEffect(() => {
-    if (selectedContract && httpEndpoint) {
-      fetchContractFees();
-    }
-  }, [selectedContract?.fileName, httpEndpoint]); // Only depend on actual values
+    fetchContractFees();
+  }, [fetchContractFees]);
 
   useEffect(() => {
       setTxAmount('0');

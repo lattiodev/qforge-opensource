@@ -345,34 +345,18 @@ function decodeValue(dv, offset, type, size = 0) {
 
 // Decode contract response
 export function decodeContractResponse(responseData, outputFields) {
-  if (!responseData || responseData === '') {
-    console.log('[contractUtils] No responseData provided to decode, returning empty result');
+  if (!responseData) {
     return { 
       success: true,
-      message: "No data returned from contract",
-      decodedFields: null // Explicitly set to null so checks work
+      message: "No data returned from contract"
     };
   }
   
   try {
-    console.log('[contractUtils] Decoding base64 responseData length:', responseData.length, 'first 50 chars:', responseData.substring(0, 50) + '...');
-    
     const binary = base64.decode(responseData);
     const buffer = Buffer.from(binary, 'binary');
-    
-    if (buffer.length === 0) {
-      console.log('[contractUtils] Decoded buffer is empty');
-      return { 
-        success: true,
-        message: "Decoded buffer is empty",
-        decodedFields: null
-      };
-    }
-    
     const dv = new DataView(buffer.buffer);
     const hexDump = [...new Uint8Array(buffer)].map(b => b.toString(16).padStart(2, '0')).join(' ');
-    
-    console.log('[contractUtils] Successfully decoded buffer, length:', buffer.length, 'hex:', hexDump.substring(0, 100) + '...');
     
     // Resolve constants for array sizes in outputs
     const resolveSize = (sizeStr) => {

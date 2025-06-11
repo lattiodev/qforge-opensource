@@ -85,41 +85,34 @@ export async function queryContract(httpEndpoint, contractIndex, functionIndex, 
       console.log('[contractApi] ResponseData is missing or empty!');
       console.log('[contractApi] Full response keys:', Object.keys(json));
       
-      // If proxy returns empty data, try direct call as fallback (with rate limiting)
+      // If proxy returns empty data, try direct call as fallback
       if (process.env.NODE_ENV === 'development') {
-        // Add rate limiting to prevent spam
-        const now = Date.now();
-        if (!window.lastDirectCallTime || now - window.lastDirectCallTime > 5000) { // 5 second cooldown
-          window.lastDirectCallTime = now;
-          console.log('[contractApi] Proxy returned empty data, trying direct call...');
+        console.log('[contractApi] Proxy returned empty data, trying direct call...');
+        
+        const directUrl = `${endpoint}/v1/querySmartContract`;
+        console.log('[contractApi] Trying direct URL:', directUrl);
+        
+        try {
+          const directResponse = await fetch(directUrl, {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify(queryData),
+          });
           
-          const directUrl = `${endpoint}/v1/querySmartContract`;
-          console.log('[contractApi] Trying direct URL:', directUrl);
-          
-          try {
-            const directResponse = await fetch(directUrl, {
-              method: 'POST',
-              headers: HEADERS,
-              body: JSON.stringify(queryData),
-            });
+          if (directResponse.ok) {
+            const directJson = await directResponse.json();
+            console.log('[contractApi] Direct call response:', JSON.stringify(directJson, null, 2));
             
-            if (directResponse.ok) {
-              const directJson = await directResponse.json();
-              console.log('[contractApi] Direct call response:', directJson);
-              
-              if (directJson.responseData) {
-                console.log('[contractApi] Direct call has responseData! Using it.');
-                return {
-                  ...decodeContractResponse(directJson.responseData, selectedFunction?.outputs || []),
-                  rawResponse: directJson
-                };
-              }
+            if (directJson.responseData) {
+              console.log('[contractApi] Direct call has responseData! Using it.');
+              return {
+                ...decodeContractResponse(directJson.responseData, selectedFunction?.outputs || []),
+                rawResponse: directJson
+              };
             }
-          } catch (directError) {
-            console.log('[contractApi] Direct call also failed:', directError.message);
           }
-        } else {
-          console.log('[contractApi] Direct call rate limited (5s cooldown), using proxy response even if empty');
+        } catch (directError) {
+          console.log('[contractApi] Direct call also failed:', directError.message);
         }
       }
     }

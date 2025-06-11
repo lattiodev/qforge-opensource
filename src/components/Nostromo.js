@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import './Nostromo.css';
 import { WalletContext } from '../App';
 import {
@@ -33,15 +33,6 @@ function Nostromo() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [lastRefreshTime, setLastRefreshTime] = useState(0);
-  const [hasInitialized, setHasInitialized] = useState(false);
-
-  // Reset initialization when component unmounts to allow fresh load on remount
-  useEffect(() => {
-    return () => {
-      setHasInitialized(false);
-    };
-  }, []);
   
   // Get wallet context from App.js
   const { qubicConnect, isConnected, httpEndpoint, qHelper } = useContext(WalletContext);
@@ -72,17 +63,31 @@ function Nostromo() {
     indexOfProject: '',
     threshold: '10',
     TGE: '20',
-    stepOfVesting: '12'
+    stepOfVesting: '12',
+    // Phase 1 dates
+    firstPhaseStartDate: '',
+    firstPhaseEndDate: '',
+    // Phase 2 dates  
+    secondPhaseStartDate: '',
+    secondPhaseEndDate: '',
+    // Phase 3 dates
+    thirdPhaseStartDate: '',
+    thirdPhaseEndDate: '',
+    // Listing and vesting dates
+    listingStartDate: '',
+    cliffEndDate: '',
+    vestingEndDate: ''
   });
-  
-  // Tab loading state tracking
-  const [loadedTabs, setLoadedTabs] = useState({
-    dashboard: false,
-    tiers: false,
-    projects: false,
-    fundraising: false,
-    portfolio: false
-  });
+
+  useEffect(() => {
+    loadPlatformData();
+  }, []);
+
+  useEffect(() => {
+    if (isConnected && qubicConnect?.wallet?.publicKey) {
+      loadUserData();
+    }
+  }, [isConnected, qubicConnect?.wallet?.publicKey]);
 
   const showMessage = (text, type = 'success') => {
     setMessage({ text, type });
@@ -99,25 +104,24 @@ function Nostromo() {
 
   const loadPlatformData = async () => {
     try {
+      setLoading(true);
       const endpoint = formatEndpoint(httpEndpoint || localStorage.getItem('httpEndpoint') || 'localhost:8080');
       
       console.log('[Nostromo] loadPlatformData - qHelper:', qHelper);
       
-      // Add longer delay to prevent rapid API calls
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
       const statsResult = await getStats(endpoint, qHelper);
-      if (statsResult && statsResult.success && statsResult.decodedFields) {
+      if (statsResult && statsResult.success) {
         setPlatformStats(statsResult.decodedFields);
-        console.log('[Nostromo] Platform stats set successfully:', statsResult.decodedFields);
-      } else {
-        console.warn('[Nostromo] Platform stats returned no data');
       }
+      
+      // Load some sample projects and fundraisings
+      await loadProjectsData();
       
     } catch (error) {
       console.error('Error loading platform data:', error);
       showMessage('Failed to load platform data', 'error');
-      throw error; // Re-throw to trigger finally block
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -127,31 +131,12 @@ function Nostromo() {
       const projectsData = [];
       const fundraisingsData = [];
       
-      // Add longer delay before starting project loading
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Load only 1 project initially to minimize API calls
-      for (let i = 0; i < 1; i++) {
+      // Load first 10 projects
+      for (let i = 0; i < 10; i++) {
         try {
-          // Add delay between each project call
-          if (i > 0) await new Promise(resolve => setTimeout(resolve, 800));
-          
           const projectResult = await getProjectByIndex(endpoint, i, qHelper);
           if (projectResult && projectResult.success && projectResult.decodedFields) {
-            const project = projectResult.decodedFields;
-            
-            // Validate project data - only add if it has real data
-            const isValidProject = project.creator && 
-                                 project.creator !== "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" &&
-                                 project.tokenName && 
-                                 project.tokenName !== '0' && 
-                                 project.tokenName !== 0 &&
-                                 project.supplyOfToken && 
-                                 project.supplyOfToken > 0;
-            
-            if (isValidProject) {
-              projectsData.push({ index: i, ...project });
-            }
+            projectsData.push({ index: i, ...projectResult.decodedFields });
           }
         } catch (error) {
           // Project doesn't exist, continue
@@ -159,28 +144,12 @@ function Nostromo() {
         }
       }
       
-      // Add delay before fundraisings
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Load only 1 fundraising initially
-      for (let i = 0; i < 1; i++) {
+      // Load fundraisings
+      for (let i = 0; i < 10; i++) {
         try {
-          // Add delay between each fundraising call
-          if (i > 0) await new Promise(resolve => setTimeout(resolve, 800));
-          
           const fundraisingResult = await getFundarasingByIndex(endpoint, i, qHelper);
           if (fundraisingResult && fundraisingResult.success && fundraisingResult.decodedFields) {
-            const fundraising = fundraisingResult.decodedFields;
-            
-            // Validate fundraising data - only add if it has real data
-            const isValidFundraising = fundraising.tokenPrice && 
-                                     fundraising.tokenPrice > 0 &&
-                                     fundraising.requiredFunds && 
-                                     fundraising.requiredFunds > 0;
-            
-            if (isValidFundraising) {
-              fundraisingsData.push({ index: i, ...fundraising });
-            }
+            fundraisingsData.push({ index: i, ...fundraisingResult.decodedFields });
           }
         } catch (error) {
           // Fundraising doesn't exist, continue
@@ -206,126 +175,33 @@ function Nostromo() {
       console.log('[Nostromo] loadUserData - qHelper:', qHelper);
       console.log('[Nostromo] loadUserData - userPublicKey:', userPublicKey);
       
-      // Add much longer initial delay for user data loading
-      await new Promise(resolve => setTimeout(resolve, 4000));
-      
       // Get user tier
       const tierResult = await getTierLevelByUser(endpoint, userPublicKey, qHelper);
-      if (tierResult && tierResult.success && tierResult.decodedFields) {
+      if (tierResult && tierResult.success) {
         setUserTier(tierResult.decodedFields.tierLevel || 0);
-      } else {
-        console.warn('[Nostromo] User tier data returned no results, setting to 0');
-        setUserTier(0);
       }
       
-      // Add longer delay between user data calls
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Get vote status  
+      // Get vote status
       const voteResult = await getUserVoteStatus(endpoint, userPublicKey, qHelper);
-      if (voteResult && voteResult.success && voteResult.decodedFields) {
+      if (voteResult && voteResult.success) {
         setUserVoteStatus(voteResult.decodedFields);
-      } else {
-        console.warn('[Nostromo] User vote status returned no data');
       }
-      
-      // Add longer delay between user data calls
-      await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Get investment stats
       const investmentResult = await getNumberOfInvestedAndClaimedProjects(endpoint, userPublicKey, qHelper);
-      if (investmentResult && investmentResult.success && investmentResult.decodedFields) {
+      if (investmentResult && investmentResult.success) {
         setUserInvestmentStats(investmentResult.decodedFields);
-      } else {
-        console.warn('[Nostromo] User investment stats returned no data');
       }
-      
-      // Add longer delay between user data calls  
-      await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Get user's projects
       const userProjectsResult = await getProjectIndexListByCreator(endpoint, userPublicKey, qHelper);
-      if (userProjectsResult && userProjectsResult.success && userProjectsResult.decodedFields) {
+      if (userProjectsResult && userProjectsResult.success) {
         setUserProjects(userProjectsResult.decodedFields.indexListForProjects || []);
-      } else {
-        console.warn('[Nostromo] User projects returned no data');
-        setUserProjects([]);
       }
       
     } catch (error) {
       console.error('Error loading user data:', error);
     }
-  };
-
-  // Tab-specific loading functions
-  const loadTabData = async (tabName) => {
-    if (loadedTabs[tabName] || loading) {
-      console.log(`[Nostromo] Tab ${tabName} already loaded or currently loading`);
-      return;
-    }
-    
-    try {
-      setLoading(true);
-      console.log(`[Nostromo] Loading data for tab: ${tabName}`);
-      
-      switch (tabName) {
-        case 'tiers':
-          if (isConnected) {
-            await loadUserData();
-          }
-          break;
-        case 'projects':
-          await loadProjectsData();
-          break;
-        case 'fundraising':
-          await loadProjectsData(); // Projects and fundraisings are loaded together
-          break;
-        case 'portfolio':
-          if (isConnected) {
-            await loadUserData();
-          }
-          break;
-        default:
-          break;
-      }
-      
-      setLoadedTabs(prev => ({ ...prev, [tabName]: true }));
-    } catch (error) {
-      console.error(`Error loading ${tabName} data:`, error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Enhanced tab click handler
-  const handleTabClick = (tabName) => {
-    setActiveTab(tabName);
-    loadTabData(tabName);
-  };
-
-  // Debounced refresh functions to prevent API spam
-  const handleRefreshUserData = () => {
-    const now = Date.now();
-    if (now - lastRefreshTime < 3000) { // 3 second cooldown
-      showMessage('Please wait before refreshing again', 'warning');
-      return;
-    }
-    setLastRefreshTime(now);
-    showMessage('Refreshing user data...', 'info');
-    setLoadedTabs(prev => ({ ...prev, tiers: false, portfolio: false }));
-    loadUserData();
-  };
-
-  const handleRefreshProjects = () => {
-    const now = Date.now();
-    if (now - lastRefreshTime < 3000) { // 3 second cooldown
-      showMessage('Please wait before refreshing again', 'warning');
-      return;
-    }
-    setLastRefreshTime(now);
-    showMessage('Refreshing projects...', 'info');
-    setLoadedTabs(prev => ({ ...prev, projects: false, fundraising: false }));
-    loadProjectsData();
   };
 
   const checkTransactionStatus = async (txId) => {
@@ -520,19 +396,136 @@ function Nostromo() {
         endHour: endDate.getHours()
       };
       
-      const result = await createProject(qubicConnect, projectData);
+      const projectResult = await createProject(qubicConnect, projectData);
       
-      if (result && result.success) {
+      if (projectResult && projectResult.success) {
         showMessage('Project created successfully!');
         setProjectForm({ tokenName: '', supply: '', startDate: '', endDate: '' });
         loadProjectsData();
         loadUserData();
       } else {
-        showMessage(result?.error || 'Project creation failed', 'error');
+        showMessage(projectResult?.error || 'Project creation failed', 'error');
       }
     } catch (error) {
       console.error('Create project error:', error);
       showMessage('Project creation failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateFundraising = async (e) => {
+    e.preventDefault();
+    if (!isConnected) {
+      showMessage('Please connect your wallet first', 'error');
+      return;
+    }
+
+    if (userTier < 4) {
+      showMessage('You need to be Tier 4 (XENOMORPH) or higher to create fundraising', 'error');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Convert all dates to Qubic date format
+      const firstPhaseStart = new Date(fundraisingForm.firstPhaseStartDate);
+      const firstPhaseEnd = new Date(fundraisingForm.firstPhaseEndDate);
+      const secondPhaseStart = new Date(fundraisingForm.secondPhaseStartDate);
+      const secondPhaseEnd = new Date(fundraisingForm.secondPhaseEndDate);
+      const thirdPhaseStart = new Date(fundraisingForm.thirdPhaseStartDate);
+      const thirdPhaseEnd = new Date(fundraisingForm.thirdPhaseEndDate);
+      const listingStart = new Date(fundraisingForm.listingStartDate);
+      const cliffEnd = new Date(fundraisingForm.cliffEndDate);
+      const vestingEnd = new Date(fundraisingForm.vestingEndDate);
+      
+      const fundraisingData = {
+        tokenPrice: fundraisingForm.tokenPrice,
+        soldAmount: fundraisingForm.soldAmount,
+        requiredFunds: fundraisingForm.requiredFunds,
+        indexOfProject: parseInt(fundraisingForm.indexOfProject),
+        
+        // Phase 1 dates
+        firstPhaseStartYear: firstPhaseStart.getFullYear(),
+        firstPhaseStartMonth: firstPhaseStart.getMonth() + 1,
+        firstPhaseStartDay: firstPhaseStart.getDate(),
+        firstPhaseStartHour: firstPhaseStart.getHours(),
+        firstPhaseEndYear: firstPhaseEnd.getFullYear(),
+        firstPhaseEndMonth: firstPhaseEnd.getMonth() + 1,
+        firstPhaseEndDay: firstPhaseEnd.getDate(),
+        firstPhaseEndHour: firstPhaseEnd.getHours(),
+        
+        // Phase 2 dates
+        secondPhaseStartYear: secondPhaseStart.getFullYear(),
+        secondPhaseStartMonth: secondPhaseStart.getMonth() + 1,
+        secondPhaseStartDay: secondPhaseStart.getDate(),
+        secondPhaseStartHour: secondPhaseStart.getHours(),
+        secondPhaseEndYear: secondPhaseEnd.getFullYear(),
+        secondPhaseEndMonth: secondPhaseEnd.getMonth() + 1,
+        secondPhaseEndDay: secondPhaseEnd.getDate(),
+        secondPhaseEndHour: secondPhaseEnd.getHours(),
+        
+        // Phase 3 dates
+        thirdPhaseStartYear: thirdPhaseStart.getFullYear(),
+        thirdPhaseStartMonth: thirdPhaseStart.getMonth() + 1,
+        thirdPhaseStartDay: thirdPhaseStart.getDate(),
+        thirdPhaseStartHour: thirdPhaseStart.getHours(),
+        thirdPhaseEndYear: thirdPhaseEnd.getFullYear(),
+        thirdPhaseEndMonth: thirdPhaseEnd.getMonth() + 1,
+        thirdPhaseEndDay: thirdPhaseEnd.getDate(),
+        thirdPhaseEndHour: thirdPhaseEnd.getHours(),
+        
+        // Listing and vesting dates
+        listingStartYear: listingStart.getFullYear(),
+        listingStartMonth: listingStart.getMonth() + 1,
+        listingStartDay: listingStart.getDate(),
+        listingStartHour: listingStart.getHours(),
+        cliffEndYear: cliffEnd.getFullYear(),
+        cliffEndMonth: cliffEnd.getMonth() + 1,
+        cliffEndDay: cliffEnd.getDate(),
+        cliffEndHour: cliffEnd.getHours(),
+        vestingEndYear: vestingEnd.getFullYear(),
+        vestingEndMonth: vestingEnd.getMonth() + 1,
+        vestingEndDay: vestingEnd.getDate(),
+        vestingEndHour: vestingEnd.getHours(),
+        
+        // Parameters
+        threshold: parseInt(fundraisingForm.threshold),
+        TGE: parseInt(fundraisingForm.TGE),
+        stepOfVesting: parseInt(fundraisingForm.stepOfVesting)
+      };
+      
+      const result = await createFundaraising(qubicConnect, fundraisingData);
+      
+      if (result && result.success) {
+        showMessage('Fundraising created successfully!');
+        setFundraisingForm({
+          tokenPrice: '',
+          soldAmount: '',
+          requiredFunds: '',
+          indexOfProject: '',
+          threshold: '10',
+          TGE: '20',
+          stepOfVesting: '12',
+          firstPhaseStartDate: '',
+          firstPhaseEndDate: '',
+          secondPhaseStartDate: '',
+          secondPhaseEndDate: '',
+          thirdPhaseStartDate: '',
+          thirdPhaseEndDate: '',
+          listingStartDate: '',
+          cliffEndDate: '',
+          vestingEndDate: ''
+        });
+        loadProjectsData();
+        loadUserData();
+      } else {
+        showMessage(result?.error || 'Fundraising creation failed', 'error');
+      }
+    } catch (error) {
+      console.error('Create fundraising error:', error);
+      showMessage('Fundraising creation failed', 'error');
     } finally {
       setLoading(false);
     }
@@ -721,7 +714,7 @@ function Nostromo() {
             <div className="btn-group">
               <button 
                 className="btn btn-secondary" 
-                onClick={handleRefreshUserData}
+                onClick={loadUserData}
                 disabled={loading}
               >
                 🔄 Refresh Status
@@ -742,7 +735,7 @@ function Nostromo() {
             <div className="btn-group">
               <button 
                 className="btn btn-secondary" 
-                onClick={handleRefreshUserData}
+                onClick={loadUserData}
                 disabled={loading}
               >
                 🔄 Check Status
@@ -895,6 +888,12 @@ function Nostromo() {
     <div>
       <div className="nostromo-form">
         <h3>🚀 Create New Project</h3>
+        <div className="message info" style={{ marginBottom: '1rem' }}>
+          <strong>📋 Two-Step Process:</strong><br />
+          1. First create a project with voting period<br />
+          2. After voting passes, create fundraising with detailed parameters
+        </div>
+        
         {userTier < 4 ? (
           <div className="message warning">
             You need to be Tier 4 (XENOMORPH) or higher to create projects
@@ -951,73 +950,301 @@ function Nostromo() {
         )}
       </div>
 
-      <h3>🗳️ Active Projects</h3>
-      {projects.length === 0 ? (
+      <div className="nostromo-form">
+        <h3>💰 Create Fundraising</h3>
+        <div className="message info" style={{ marginBottom: '1rem' }}>
+          <strong>⚠️ Requirements:</strong><br />
+          • Project must exist and voting must have passed (YES &gt; NO)<br />
+          • Voting period must be completed<br />
+          • Only project creator can create fundraising
+        </div>
+        
+        {userTier < 4 ? (
+          <div className="message warning">
+            You need to be Tier 4 (XENOMORPH) or higher to create fundraising
+          </div>
+        ) : (
+          <form onSubmit={handleCreateFundraising}>
+            {/* Basic Fundraising Info */}
+            <h4>💼 Basic Information</h4>
+            <div className="form-row">
+              <div className="form-field">
+                <label>Project Index</label>
+                <input
+                  type="number"
+                  value={fundraisingForm.indexOfProject}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, indexOfProject: e.target.value})}
+                  placeholder="e.g., 0"
+                  required
+                />
+                <small>Index of your approved project</small>
+              </div>
+              <div className="form-field">
+                <label>Token Price (QU per token)</label>
+                <input
+                  type="number"
+                  value={fundraisingForm.tokenPrice}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, tokenPrice: e.target.value})}
+                  placeholder="e.g., 1000000"
+                  required
+                />
+              </div>
+            </div>
+            
+            <div className="form-row">
+              <div className="form-field">
+                <label>Tokens for Sale</label>
+                <input
+                  type="number"
+                  value={fundraisingForm.soldAmount}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, soldAmount: e.target.value})}
+                  placeholder="e.g., 500000"
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label>Required Funds (QU)</label>
+                <input
+                  type="number"
+                  value={fundraisingForm.requiredFunds}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, requiredFunds: e.target.value})}
+                  placeholder="e.g., 500000000000"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Tokenomics */}
+            <h4>📊 Tokenomics</h4>
+            <div className="form-row">
+              <div className="form-field">
+                <label>Threshold (%)</label>
+                <input
+                  type="number"
+                  value={fundraisingForm.threshold}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, threshold: e.target.value})}
+                  min="0"
+                  max="50"
+                  required
+                />
+                <small>Max cap = required funds + threshold%</small>
+              </div>
+              <div className="form-field">
+                <label>TGE (%)</label>
+                <input
+                  type="number"
+                  value={fundraisingForm.TGE}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, TGE: e.target.value})}
+                  min="0"
+                  max="50"
+                  required
+                />
+                <small>Token Generation Event unlock</small>
+              </div>
+              <div className="form-field">
+                <label>Vesting Steps</label>
+                <input
+                  type="number"
+                  value={fundraisingForm.stepOfVesting}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, stepOfVesting: e.target.value})}
+                  min="1"
+                  max="12"
+                  required
+                />
+                <small>Number of vesting periods</small>
+              </div>
+            </div>
+
+            {/* Phase 1 - Tier-based */}
+            <h4>🥇 Phase 1 (All Tiers)</h4>
+            <div className="form-row">
+              <div className="form-field">
+                <label>Phase 1 Start</label>
+                <input
+                  type="datetime-local"
+                  value={fundraisingForm.firstPhaseStartDate}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, firstPhaseStartDate: e.target.value})}
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label>Phase 1 End</label>
+                <input
+                  type="datetime-local"
+                  value={fundraisingForm.firstPhaseEndDate}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, firstPhaseEndDate: e.target.value})}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Phase 2 - High tiers only */}
+            <h4>🥈 Phase 2 (Tier 4+ Only)</h4>
+            <div className="form-row">
+              <div className="form-field">
+                <label>Phase 2 Start</label>
+                <input
+                  type="datetime-local"
+                  value={fundraisingForm.secondPhaseStartDate}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, secondPhaseStartDate: e.target.value})}
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label>Phase 2 End</label>
+                <input
+                  type="datetime-local"
+                  value={fundraisingForm.secondPhaseEndDate}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, secondPhaseEndDate: e.target.value})}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Phase 3 - Public */}
+            <h4>🥉 Phase 3 (Public)</h4>
+            <div className="form-row">
+              <div className="form-field">
+                <label>Phase 3 Start</label>
+                <input
+                  type="datetime-local"
+                  value={fundraisingForm.thirdPhaseStartDate}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, thirdPhaseStartDate: e.target.value})}
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label>Phase 3 End</label>
+                <input
+                  type="datetime-local"
+                  value={fundraisingForm.thirdPhaseEndDate}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, thirdPhaseEndDate: e.target.value})}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Listing and Vesting */}
+            <h4>📈 Listing & Vesting Schedule</h4>
+            <div className="form-row">
+              <div className="form-field">
+                <label>Listing Start</label>
+                <input
+                  type="datetime-local"
+                  value={fundraisingForm.listingStartDate}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, listingStartDate: e.target.value})}
+                  required
+                />
+                <small>When TGE tokens unlock</small>
+              </div>
+              <div className="form-field">
+                <label>Cliff End</label>
+                <input
+                  type="datetime-local"
+                  value={fundraisingForm.cliffEndDate}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, cliffEndDate: e.target.value})}
+                  required
+                />
+                <small>When vesting starts</small>
+              </div>
+              <div className="form-field">
+                <label>Vesting End</label>
+                <input
+                  type="datetime-local"
+                  value={fundraisingForm.vestingEndDate}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, vestingEndDate: e.target.value})}
+                  required
+                />
+                <small>When all tokens unlock</small>
+              </div>
+            </div>
+
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? 'Creating...' : `Create Fundraising (${formatQU(NOSTROMO_FEES.QX_TOKEN_ISSUANCE)} fee)`}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderVoting = () => (
+    <div>
+      <h3>🗳️ Projects Awaiting Your Vote</h3>
+      <div className="message info" style={{ marginBottom: '1rem' }}>
+        <strong>ℹ️ How Voting Works:</strong><br />
+        • All tier holders can vote on projects<br />
+        • Projects need YES &gt; NO to proceed to fundraising<br />
+        • You can vote on up to 64 projects per epoch
+      </div>
+      
+      {!isConnected ? (
+        <div className="message warning">
+          Connect your wallet to vote on projects
+        </div>
+      ) : userTier === 0 ? (
+        <div className="message warning">
+          You need to register in a tier to vote on projects
+        </div>
+      ) : projects.length === 0 ? (
         <div className="message">
-          <p>No active projects found. Be the first to create one!</p>
-          <button 
-            className="btn btn-secondary" 
-            onClick={handleRefreshProjects}
-            disabled={loading}
-          >
-            🔄 Refresh Projects
-          </button>
+          <p>No projects available for voting at the moment.</p>
         </div>
       ) : (
         <div className="projects-grid">
-          {projects.map((project) => {
-            const tokenName = uint64ToTokenName(project.tokenName);
-            
-            return (
-              <div key={project.index} className="project-card">
-                <div className="project-header">
-                  <div className="project-name">
-                    {tokenName || `Project #${project.index}`}
-                  </div>
-                  <div className="project-status status-voting">
-                    🗳️ Voting
-                  </div>
+          {projects.filter(project => project && typeof project === 'object').map((project) => (
+            <div key={project.index} className="project-card">
+              <div className="project-header">
+                <div className="project-name">
+                  {uint64ToTokenName(project.tokenName)}
                 </div>
-                
-                <div>
-                  <strong>Creator:</strong> {project.creator ? `${project.creator.substring(0, 8)}...${project.creator.substring(project.creator.length - 8)}` : 'Unknown'}
+                <div className="project-status status-voting">
+                  🗳️ Voting Active
                 </div>
-                <div>
-                  <strong>Supply:</strong> {project.supplyOfToken ? project.supplyOfToken.toLocaleString() : 'N/A'}
-                </div>
-                
-                <div className="project-votes">
-                  <div className="vote-count vote-yes">
-                    <div className="vote-number">{project.numberOfYes || 0}</div>
-                    <div>YES</div>
-                  </div>
-                  <div className="vote-count vote-no">
-                    <div className="vote-number">{project.numberOfNo || 0}</div>
-                    <div>NO</div>
-                  </div>
-                </div>
-                
-                {isConnected && userTier > 0 && (
-                  <div className="btn-group">
-                    <button 
-                      className="btn btn-primary" 
-                      onClick={() => handleVote(project.index, true)}
-                      disabled={loading}
-                    >
-                      Vote YES
-                    </button>
-                    <button 
-                      className="btn btn-danger" 
-                      onClick={() => handleVote(project.index, false)}
-                      disabled={loading}
-                    >
-                      Vote NO
-                    </button>
-                  </div>
-                )}
               </div>
-            );
-          })}
+              
+              <div>
+                <strong>Creator:</strong> {project.creator ? `${project.creator.substring(0, 8)}...${project.creator.substring(project.creator.length - 8)}` : 'Unknown'}
+              </div>
+              <div>
+                <strong>Supply:</strong> {project.supplyOfToken ? project.supplyOfToken.toLocaleString() : 'N/A'}
+              </div>
+              
+              <div className="project-votes">
+                <div className="vote-count vote-yes">
+                  <div className="vote-number">{project.numberOfYes || 0}</div>
+                  <div>YES</div>
+                </div>
+                <div className="vote-count vote-no">
+                  <div className="vote-number">{project.numberOfNo || 0}</div>
+                  <div>NO</div>
+                </div>
+              </div>
+              
+              {project.isCreatedFundarasing && (
+                <div className="message success" style={{ fontSize: '0.8rem', margin: '0.5rem 0' }}>
+                  ✅ Fundraising Created - Check Fundraising tab!
+                </div>
+              )}
+              
+              <div className="btn-group">
+                <button 
+                  className="btn btn-primary" 
+                  onClick={() => handleVote(project.index, true)}
+                  disabled={loading}
+                >
+                  👍 Vote YES
+                </button>
+                <button 
+                  className="btn btn-danger" 
+                  onClick={() => handleVote(project.index, false)}
+                  disabled={loading}
+                >
+                  👎 Vote NO
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -1025,10 +1252,25 @@ function Nostromo() {
 
   const renderFundraising = () => (
     <div>
-      <h3>💰 Active Fundraisings</h3>
-      {fundraisings.length === 0 ? (
+      <h3>💰 Active Fundraisings - Invest Now!</h3>
+      <div className="message info" style={{ marginBottom: '1rem' }}>
+        <strong>💡 Investment Phases:</strong><br />
+        • <strong>Phase 1:</strong> All tiers (tier-weighted allocation)<br />
+        • <strong>Phase 2:</strong> Tier 4+ only (XENOMORPH/WARRIOR)<br />
+        • <strong>Phase 3:</strong> Public (no restrictions)
+      </div>
+      
+      {!isConnected ? (
+        <div className="message warning">
+          Connect your wallet to invest in fundraisings
+        </div>
+      ) : userTier === 0 ? (
+        <div className="message warning">
+          You need to register in a tier to invest in fundraisings
+        </div>
+      ) : fundraisings.length === 0 ? (
         <div className="message">
-          <p>No active fundraisings found.</p>
+          <p>No active fundraisings found. Check back later or vote on projects to help them reach fundraising stage!</p>
         </div>
       ) : (
         <div className="projects-grid">
@@ -1044,7 +1286,7 @@ function Nostromo() {
                     Fundraising #{fundraising.index}
                   </div>
                   <div className="project-status status-voting">
-                    💰 Active
+                    💰 Live Investment
                   </div>
                 </div>
                 
@@ -1055,7 +1297,7 @@ function Nostromo() {
                   <strong>Required:</strong> {formatQU(fundraising.requiredFunds)}
                 </div>
                 <div>
-                  <strong>TGE:</strong> {fundraising.TGE || 0}%
+                  <strong>TGE:</strong> {fundraising.TGE || 0}% | <strong>Vesting:</strong> {fundraising.stepOfVesting || 0} steps
                 </div>
                 
                 <div className="fundraising-progress">
@@ -1070,20 +1312,18 @@ function Nostromo() {
                   </div>
                 </div>
                 
-                {isConnected && userTier > 0 && (
-                  <div className="btn-group">
-                    <button 
-                      className="btn btn-primary" 
-                      onClick={() => {
-                        const amount = prompt('Enter investment amount (QU):');
-                        if (amount) handleInvest(fundraising.index, amount);
-                      }}
-                      disabled={loading}
-                    >
-                      Invest
-                    </button>
-                  </div>
-                )}
+                <div className="btn-group">
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={() => {
+                      const amount = prompt('Enter investment amount (QU):');
+                      if (amount) handleInvest(fundraising.index, amount);
+                    }}
+                    disabled={loading}
+                  >
+                    💰 Invest Now
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -1107,77 +1347,6 @@ function Nostromo() {
     </div>
   );
 
-  // Remove this duplicate declaration - it's causing issues
-
-  // Load only dashboard data on initial mount
-  useEffect(() => {
-    let mounted = true;
-    
-    const loadInitialData = async () => {
-      // Prevent React StrictMode double execution
-      if (window.nostromoDataLoading) {
-        console.log('[Nostromo] Already loading data globally, skipping...');
-        return;
-      }
-      
-      if (loading || hasInitialized) {
-        console.log('[Nostromo] Skipping initial load - already loading or initialized');
-        return;
-      }
-      
-      try {
-        console.log('[Nostromo] Loading initial dashboard data only...');
-        window.nostromoDataLoading = true;
-        setLoading(true);
-        setHasInitialized(true);
-        
-        if (mounted) {
-          // Only load platform stats initially for dashboard
-          await loadPlatformData();
-          setLoadedTabs(prev => ({ ...prev, dashboard: true }));
-          console.log('[Nostromo] Initial dashboard data load completed');
-        }
-      } catch (error) {
-        console.error('[Nostromo] Error in initial data load:', error);
-      } finally {
-        if (mounted) {
-          console.log('[Nostromo] Clearing loading state');
-          setLoading(false);
-          window.nostromoDataLoading = false;
-        }
-      }
-    };
-    
-    // Only run if we have required values and haven't initialized yet
-    if (httpEndpoint && qHelper && !hasInitialized && !window.nostromoDataLoading) {
-      // Add small delay to ensure everything is ready
-      setTimeout(() => {
-        if (mounted) {
-          loadInitialData();
-        }
-      }, 100);
-    }
-    
-    return () => {
-      mounted = false;
-    };
-  }, [httpEndpoint, qHelper]);
-
-  // User data now loads on-demand when clicking tiers/portfolio tabs
-  // No automatic loading to prevent API spam
-  
-  // Fail-safe: Clear loading state if stuck
-  useEffect(() => {
-    if (loading) {
-      const timeout = setTimeout(() => {
-        console.log('[Nostromo] Fail-safe: Clearing stuck loading state');
-        setLoading(false);
-      }, 10000); // 10 second timeout
-      
-      return () => clearTimeout(timeout);
-    }
-  }, [loading]);
-
   return (
     <div className="nostromo-container">
       <h1>🛸 NOSTROMO - Project Funding Platform</h1>
@@ -1192,31 +1361,37 @@ function Nostromo() {
       <div className="tabs">
         <button 
           className={activeTab === 'dashboard' ? 'active' : ''} 
-          onClick={() => handleTabClick('dashboard')}
+          onClick={() => setActiveTab('dashboard')}
         >
           🏠 Dashboard
         </button>
         <button 
           className={activeTab === 'tiers' ? 'active' : ''} 
-          onClick={() => handleTabClick('tiers')}
+          onClick={() => setActiveTab('tiers')}
         >
           👽 Tier Management
         </button>
         <button 
-          className={activeTab === 'projects' ? 'active' : ''} 
-          onClick={() => handleTabClick('projects')}
+          className={activeTab === 'voting' ? 'active' : ''} 
+          onClick={() => setActiveTab('voting')}
         >
-          🚀 Projects
+          🗳️ Vote on Projects
         </button>
         <button 
           className={activeTab === 'fundraising' ? 'active' : ''} 
-          onClick={() => handleTabClick('fundraising')}
+          onClick={() => setActiveTab('fundraising')}
         >
-          💰 Fundraising
+          💰 Invest in Fundraising
+        </button>
+        <button 
+          className={activeTab === 'projects' ? 'active' : ''} 
+          onClick={() => setActiveTab('projects')}
+        >
+          🚀 Create Projects
         </button>
         <button 
           className={activeTab === 'portfolio' ? 'active' : ''} 
-          onClick={() => handleTabClick('portfolio')}
+          onClick={() => setActiveTab('portfolio')}
         >
           💼 Portfolio
         </button>
@@ -1232,8 +1407,9 @@ function Nostromo() {
         
         {!loading && activeTab === 'dashboard' && renderDashboard()}
         {!loading && activeTab === 'tiers' && renderTierManagement()}
-        {!loading && activeTab === 'projects' && renderProjects()}
+        {!loading && activeTab === 'voting' && renderVoting()}
         {!loading && activeTab === 'fundraising' && renderFundraising()}
+        {!loading && activeTab === 'projects' && renderProjects()}
         {!loading && activeTab === 'portfolio' && renderPortfolio()}
       </div>
     </div>
