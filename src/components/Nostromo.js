@@ -12,6 +12,7 @@ import {
   getProjectIndexListByCreator,
   registerInTier,
   logoutFromTier,
+  upgradeTier,
   createProject,
   voteInProject,
   createFundaraising,
@@ -34,7 +35,7 @@ function Nostromo() {
   const [loading, setLoading] = useState(false);
   
   // Get wallet context from App.js
-  const { qubicConnect, isConnected, httpEndpoint } = useContext(WalletContext);
+  const { qubicConnect, isConnected, httpEndpoint, qHelper } = useContext(WalletContext);
   
   // Platform data
   const [platformStats, setPlatformStats] = useState(null);
@@ -93,7 +94,9 @@ function Nostromo() {
       setLoading(true);
       const endpoint = formatEndpoint(httpEndpoint || localStorage.getItem('httpEndpoint') || 'localhost:8080');
       
-      const statsResult = await getStats(endpoint);
+      console.log('[Nostromo] loadPlatformData - qHelper:', qHelper);
+      
+      const statsResult = await getStats(endpoint, qHelper);
       if (statsResult && statsResult.success) {
         setPlatformStats(statsResult.decodedFields);
       }
@@ -118,7 +121,7 @@ function Nostromo() {
       // Load first 10 projects
       for (let i = 0; i < 10; i++) {
         try {
-          const projectResult = await getProjectByIndex(endpoint, i);
+          const projectResult = await getProjectByIndex(endpoint, i, qHelper);
           if (projectResult && projectResult.success && projectResult.decodedFields) {
             projectsData.push({ index: i, ...projectResult.decodedFields.project });
           }
@@ -131,7 +134,7 @@ function Nostromo() {
       // Load fundraisings
       for (let i = 0; i < 10; i++) {
         try {
-          const fundraisingResult = await getFundarasingByIndex(endpoint, i);
+          const fundraisingResult = await getFundarasingByIndex(endpoint, i, qHelper);
           if (fundraisingResult && fundraisingResult.success && fundraisingResult.decodedFields) {
             fundraisingsData.push({ index: i, ...fundraisingResult.decodedFields.fundarasing });
           }
@@ -156,26 +159,29 @@ function Nostromo() {
       
       if (!userPublicKey) return;
       
+      console.log('[Nostromo] loadUserData - qHelper:', qHelper);
+      console.log('[Nostromo] loadUserData - userPublicKey:', userPublicKey);
+      
       // Get user tier
-      const tierResult = await getTierLevelByUser(endpoint, userPublicKey);
+      const tierResult = await getTierLevelByUser(endpoint, userPublicKey, qHelper);
       if (tierResult && tierResult.success) {
         setUserTier(tierResult.decodedFields.tierLevel || 0);
       }
       
       // Get vote status
-      const voteResult = await getUserVoteStatus(endpoint, userPublicKey);
+      const voteResult = await getUserVoteStatus(endpoint, userPublicKey, qHelper);
       if (voteResult && voteResult.success) {
         setUserVoteStatus(voteResult.decodedFields);
       }
       
       // Get investment stats
-      const investmentResult = await getNumberOfInvestedAndClaimedProjects(endpoint, userPublicKey);
+      const investmentResult = await getNumberOfInvestedAndClaimedProjects(endpoint, userPublicKey, qHelper);
       if (investmentResult && investmentResult.success) {
         setUserInvestmentStats(investmentResult.decodedFields);
       }
       
       // Get user's projects
-      const userProjectsResult = await getProjectIndexListByCreator(endpoint, userPublicKey);
+      const userProjectsResult = await getProjectIndexListByCreator(endpoint, userPublicKey, qHelper);
       if (userProjectsResult && userProjectsResult.success) {
         setUserProjects(userProjectsResult.decodedFields.indexListForProjects || []);
       }
@@ -302,6 +308,48 @@ function Nostromo() {
     } catch (error) {
       console.error('Logout error:', error);
       showMessage('Logout failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpgradeTier = async (newTierLevel) => {
+    if (!isConnected) {
+      showMessage('Please connect your wallet first', 'error');
+      return;
+    }
+
+    if (userTier === 0) {
+      showMessage('You need to register in a tier first', 'error');
+      return;
+    }
+
+    if (newTierLevel <= userTier) {
+      showMessage('You can only upgrade to a higher tier', 'error');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const tierInfo = getTierInfo(newTierLevel);
+      const currentTierInfo = getTierInfo(userTier);
+      const upgradeCost = tierInfo.stake - currentTierInfo.stake;
+      
+      showMessage(`Upgrading to ${tierInfo.name}... Cost: ${formatQU(upgradeCost)}`, 'info');
+      
+      const result = await upgradeTier(qubicConnect, newTierLevel);
+      console.log('[Nostromo] Upgrade tier result:', result);
+      
+      if (result && result.success) {
+        showMessage(`Successfully upgraded to ${tierInfo.name}!`);
+        loadUserData();
+        loadPlatformData();
+      } else {
+        showMessage(result?.error || 'Upgrade failed', 'error');
+      }
+    } catch (error) {
+      console.error('Upgrade tier error:', error);
+      showMessage('Upgrade failed', 'error');
     } finally {
       setLoading(false);
     }
@@ -607,6 +655,47 @@ function Nostromo() {
             >
               {loading ? 'Processing...' : `Register in ${NOSTROMO_TIERS[selectedTier].name} Tier`}
             </button>
+          </div>
+        )}
+
+        {/* Debug info */}
+        <div style={{ padding: '1rem', background: '#1a1a1a', margin: '1rem 0', borderRadius: '8px' }}>
+          <strong>Debug Info:</strong><br />
+          Current Tier: {userTier}<br />
+          Show Upgrade: {userTier > 0 && userTier < 5 ? 'YES' : 'NO'}<br />
+          Is Connected: {isConnected ? 'YES' : 'NO'}
+        </div>
+
+        {userTier > 0 && userTier < 5 && (
+          <div className="upgrade-section" style={{ border: '2px solid #00ff00', padding: '1rem', margin: '1rem 0' }}>
+            <h3>⬆️ Upgrade Your Tier</h3>
+            <p>Upgrade to a higher tier for more benefits and higher pool weight</p>
+            
+            <div className="upgrade-options">
+              {Object.entries(NOSTROMO_TIERS)
+                .filter(([tier]) => parseInt(tier) > userTier)
+                .map(([tier, info]) => {
+                  const currentTierInfo = getTierInfo(userTier);
+                  const upgradeCost = info.stake - currentTierInfo.stake;
+                  
+                  return (
+                    <div key={tier} className="upgrade-option">
+                      <div className="upgrade-info">
+                        <strong>👽 {info.name} (Tier {tier})</strong>
+                        <div>Upgrade Cost: {formatQU(upgradeCost)}</div>
+                        <div>Additional Pool Weight: +{info.poolWeight - currentTierInfo.poolWeight}</div>
+                      </div>
+                      <button 
+                        className="btn btn-accent" 
+                        onClick={() => handleUpgradeTier(parseInt(tier))}
+                        disabled={loading}
+                      >
+                        {loading ? 'Processing...' : `Upgrade to ${info.name}`}
+                      </button>
+                    </div>
+                  );
+                })}
+            </div>
           </div>
         )}
         

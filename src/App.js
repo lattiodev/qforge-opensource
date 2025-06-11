@@ -603,7 +603,8 @@ const ContractUI = () => {
     <WalletContext.Provider value={{
       qubicConnect: fullQubicConnectContext,
       isConnected: connected,
-      httpEndpoint
+      httpEndpoint,
+      qHelper: fullQubicConnectContext?.qHelper
     }}>
       <div className="min-h-screen bg-gray-900 text-gray-200 p-4 md:p-6 font-sans">
         <div className="flex justify-between items-center mb-6 gap-4 border-b border-gray-700 pb-4">

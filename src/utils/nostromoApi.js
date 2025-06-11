@@ -347,6 +347,38 @@ export async function logoutFromTier(qubicConnect) {
   return await executeTransactionWithWallet(txDetails);
 }
 
+export async function upgradeTier(qubicConnect, newTierLevel) {
+  console.log('[Nostromo] upgradeTier called with newTierLevel:', newTierLevel);
+  
+  // Calculate the upgrade cost (difference between current and new tier)
+  const upgradeCosts = {
+    2: NOSTROMO_TIERS[2].stake - NOSTROMO_TIERS[1].stake, // CHESTBURST - FACEHUGGER
+    3: NOSTROMO_TIERS[3].stake - NOSTROMO_TIERS[2].stake, // DOG - CHESTBURST  
+    4: NOSTROMO_TIERS[4].stake - NOSTROMO_TIERS[3].stake, // XENOMORPH - DOG
+    5: NOSTROMO_TIERS[5].stake - NOSTROMO_TIERS[4].stake  // WARRIOR - XENOMORPH
+  };
+  
+  const upgradeAmount = upgradeCosts[newTierLevel];
+  console.log('[Nostromo] upgradeAmount for tier', newTierLevel, ':', upgradeAmount);
+  
+  const txDetails = {
+    qubicConnect,
+    contractIndex: NOSTROMO_CONTRACT_INDEX,
+    procedureIndex: 8, // upgradeTier procedure index
+    params: { newTierLevel },
+    inputFields: [
+      { name: 'newTierLevel', type: 'uint32' }
+    ],
+    amount: upgradeAmount.toString(),
+    sourceId: qubicConnect.wallet.publicKey,
+    destinationId: NOSTROMO_ADDRESS
+  };
+  
+  console.log('[Nostromo] upgradeTier txDetails:', txDetails);
+  
+  return await executeTransactionWithWallet(txDetails);
+}
+
 export async function createProject(qubicConnect, projectData) {
   const txDetails = {
     qubicConnect,
