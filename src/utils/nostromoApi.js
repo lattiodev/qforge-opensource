@@ -17,7 +17,8 @@ export const NOSTROMO_TIERS = {
 
 export const NOSTROMO_FEES = {
   QX_TOKEN_ISSUANCE: 1000000000,  // 1B base units
-  CREATE_PROJECT: 100000000       // 100M base units
+  CREATE_PROJECT: 100000000,       // 100M base units
+  TRANSFER_RIGHTS: 1000000         // 1M base units
 };
 
 // NOSTROMO FUNCTIONS (view functions)
@@ -38,6 +39,7 @@ const NOSTROMO_VOTE_IN_PROJECT = 4;
 const NOSTROMO_CREATE_FUNDARAISING = 5;
 const NOSTROMO_INVEST_IN_PROJECT = 6;
 const NOSTROMO_CLAIM_TOKEN = 7;
+const NOSTROMO_TRANSFER_SHARE_MANAGEMENT_RIGHTS = 8;
 
 // View Functions
 export async function getStats(httpEndpoint, qHelper = null) {
@@ -529,6 +531,29 @@ export async function claimToken(qubicConnect, indexOfFundaraising, amount) {
   return await executeTransactionWithWallet(txDetails);
 }
 
+export async function transferShareManagementRights(qubicConnect, asset, numberOfShares, newManagingContractIndex) {
+  const txDetails = {
+    qubicConnect,
+    contractIndex: NOSTROMO_CONTRACT_INDEX,
+    procedureIndex: NOSTROMO_TRANSFER_SHARE_MANAGEMENT_RIGHTS,
+    params: {
+      asset,
+      numberOfShares,
+      newManagingContractIndex
+    },
+    inputFields: [
+      { name: 'asset', type: 'Asset' },
+      { name: 'numberOfShares', type: 'sint64' },
+      { name: 'newManagingContractIndex', type: 'uint32' }
+    ],
+    amount: NOSTROMO_FEES.TRANSFER_RIGHTS.toString(),
+    sourceId: qubicConnect.wallet.publicKey,
+    destinationId: NOSTROMO_ADDRESS
+  };
+  
+  return await executeTransactionWithWallet(txDetails);
+}
+
 // Helper functions
 export function formatQU(amount) {
   if (!amount) return '0 QU';
@@ -537,46 +562,22 @@ export function formatQU(amount) {
 }
 
 export function isValidProject(project) {
-  console.log('[nostromoApi] isValidProject called with:', project);
-  
-  if (!project) {
-    console.log('[nostromoApi] isValidProject: project is null/undefined');
-    return false;
-  }
-  
-  // Check creator
-  const hasValidCreator = project.creator && 
-         project.creator !== '0000000000000000000000000000000000000000000000000000000000000000';
-  console.log('[nostromoApi] isValidProject: creator check:', hasValidCreator, 'creator:', project.creator);
-  
-  // Check token name
-  const hasValidTokenName = project.tokenName && 
-         project.tokenName !== '0' && 
-         project.tokenName !== 0;
-  console.log('[nostromoApi] isValidProject: tokenName check:', hasValidTokenName, 'tokenName:', project.tokenName);
-  
-  // Check supply
-  const hasValidSupply = project.supplyOfToken && 
-         project.supplyOfToken !== '0' && 
-         project.supplyOfToken !== 0;
-  console.log('[nostromoApi] isValidProject: supply check:', hasValidSupply, 'supply:', project.supplyOfToken);
-  
-  const isValid = hasValidCreator && hasValidTokenName && hasValidSupply;
-  console.log('[nostromoApi] isValidProject: final result:', isValid);
-  
-  return isValid;
+  return project && 
+    project.creator && 
+    project.tokenName && 
+    project.supplyOfToken && 
+    project.startDate && 
+    project.endDate &&
+    typeof project.isCreatedFundarasing === 'boolean';
 }
 
 export function isValidFundraising(fundraising) {
-  if (!fundraising) return false;
-  
-  // Check if fundraising has real data
-  return fundraising.tokenPrice && 
-         fundraising.tokenPrice !== '0' && 
-         fundraising.tokenPrice !== 0 &&
-         fundraising.requiredFunds && 
-         fundraising.requiredFunds !== '0' && 
-         fundraising.requiredFunds !== 0;
+  return fundraising && 
+    fundraising.tokenPrice && 
+    fundraising.soldAmount && 
+    fundraising.requiredFunds &&
+    fundraising.indexOfProject !== undefined &&
+    typeof fundraising.isCreatedToken === 'boolean';
 }
 
 export async function checkTransactionStatus(httpEndpoint, transactionId) {
