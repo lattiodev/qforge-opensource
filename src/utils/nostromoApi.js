@@ -574,11 +574,10 @@ export function isValidProject(project) {
 }
 
 export function isValidFundraising(fundraising) {
-  return fundraising && 
-    fundraising.tokenPrice && 
-    fundraising.soldAmount && 
-    fundraising.requiredFunds &&
-    fundraising.indexOfProject !== undefined &&
+  return fundraising &&
+    fundraising.requiredFunds && fundraising.requiredFunds !== '0' &&
+    fundraising.indexOfProject !== undefined && fundraising.indexOfProject !== 0 &&
+    fundraising.tokenPrice && fundraising.tokenPrice !== '0' &&
     typeof fundraising.isCreatedToken === 'boolean';
 }
 
