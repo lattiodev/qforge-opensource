@@ -973,6 +973,7 @@ function Nostromo() {
         
         <div className="message info" style={{ marginBottom: '1rem' }}>
           <strong>⏰ All times are in UTC.</strong> Your local time will be converted to UTC for the contract.<br />
+          <span style={{ color: '#c77d00' }}><strong>Note:</strong> The smart contract only accepts hours (minutes are ignored).</span>
         </div>
         
         {userTier < 4 ? (
@@ -1009,8 +1010,8 @@ function Nostromo() {
                 <label>Voting Start Date</label>
                 <input
                   type="datetime-local"
-                  value={projectForm.startDate}
-                  onChange={(e) => setProjectForm({...projectForm, startDate: e.target.value})}
+                  value={formatToHourOnly(projectForm.startDate)}
+                  onChange={(e) => setProjectForm({...projectForm, startDate: formatToHourOnly(e.target.value)})}
                   required
                 />
                 {projectForm.startDate && (
@@ -1026,8 +1027,8 @@ function Nostromo() {
                 <label>Voting End Date</label>
                 <input
                   type="datetime-local"
-                  value={projectForm.endDate}
-                  onChange={(e) => setProjectForm({...projectForm, endDate: e.target.value})}
+                  value={formatToHourOnly(projectForm.endDate)}
+                  onChange={(e) => setProjectForm({...projectForm, endDate: formatToHourOnly(e.target.value)})}
                   required
                 />
                 {projectForm.endDate && (
@@ -1058,6 +1059,7 @@ function Nostromo() {
         
         <div className="message info" style={{ marginBottom: '1rem' }}>
           <strong>⏰ All times are in UTC.</strong> Your local time will be converted to UTC for the contract.<br />
+          <span style={{ color: '#c77d00' }}><strong>Note:</strong> The smart contract only accepts hours (minutes are ignored).</span>
         </div>
         
         {userTier < 4 ? (
@@ -1163,8 +1165,8 @@ function Nostromo() {
                 <label>Phase 1 Start</label>
                 <input
                   type="datetime-local"
-                  value={fundraisingForm.firstPhaseStartDate}
-                  onChange={(e) => setFundraisingForm({...fundraisingForm, firstPhaseStartDate: e.target.value})}
+                  value={formatToHourOnly(fundraisingForm.firstPhaseStartDate)}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, firstPhaseStartDate: formatToHourOnly(e.target.value)})}
                   required
                 />
                 {fundraisingForm.firstPhaseStartDate && (
@@ -1180,8 +1182,8 @@ function Nostromo() {
                 <label>Phase 1 End</label>
                 <input
                   type="datetime-local"
-                  value={fundraisingForm.firstPhaseEndDate}
-                  onChange={(e) => setFundraisingForm({...fundraisingForm, firstPhaseEndDate: e.target.value})}
+                  value={formatToHourOnly(fundraisingForm.firstPhaseEndDate)}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, firstPhaseEndDate: formatToHourOnly(e.target.value)})}
                   required
                 />
                 {fundraisingForm.firstPhaseEndDate && (
@@ -1202,8 +1204,8 @@ function Nostromo() {
                 <label>Phase 2 Start</label>
                 <input
                   type="datetime-local"
-                  value={fundraisingForm.secondPhaseStartDate}
-                  onChange={(e) => setFundraisingForm({...fundraisingForm, secondPhaseStartDate: e.target.value})}
+                  value={formatToHourOnly(fundraisingForm.secondPhaseStartDate)}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, secondPhaseStartDate: formatToHourOnly(e.target.value)})}
                   required
                 />
                 {fundraisingForm.secondPhaseStartDate && (
@@ -1219,8 +1221,8 @@ function Nostromo() {
                 <label>Phase 2 End</label>
                 <input
                   type="datetime-local"
-                  value={fundraisingForm.secondPhaseEndDate}
-                  onChange={(e) => setFundraisingForm({...fundraisingForm, secondPhaseEndDate: e.target.value})}
+                  value={formatToHourOnly(fundraisingForm.secondPhaseEndDate)}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, secondPhaseEndDate: formatToHourOnly(e.target.value)})}
                   required
                 />
                 {fundraisingForm.secondPhaseEndDate && (
@@ -1241,8 +1243,8 @@ function Nostromo() {
                 <label>Phase 3 Start</label>
                 <input
                   type="datetime-local"
-                  value={fundraisingForm.thirdPhaseStartDate}
-                  onChange={(e) => setFundraisingForm({...fundraisingForm, thirdPhaseStartDate: e.target.value})}
+                  value={formatToHourOnly(fundraisingForm.thirdPhaseStartDate)}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, thirdPhaseStartDate: formatToHourOnly(e.target.value)})}
                   required
                 />
                 {fundraisingForm.thirdPhaseStartDate && (
@@ -1258,8 +1260,8 @@ function Nostromo() {
                 <label>Phase 3 End</label>
                 <input
                   type="datetime-local"
-                  value={fundraisingForm.thirdPhaseEndDate}
-                  onChange={(e) => setFundraisingForm({...fundraisingForm, thirdPhaseEndDate: e.target.value})}
+                  value={formatToHourOnly(fundraisingForm.thirdPhaseEndDate)}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, thirdPhaseEndDate: formatToHourOnly(e.target.value)})}
                   required
                 />
                 {fundraisingForm.thirdPhaseEndDate && (
@@ -1280,8 +1282,8 @@ function Nostromo() {
                 <label>Listing Start</label>
                 <input
                   type="datetime-local"
-                  value={fundraisingForm.listingStartDate}
-                  onChange={(e) => setFundraisingForm({...fundraisingForm, listingStartDate: e.target.value})}
+                  value={formatToHourOnly(fundraisingForm.listingStartDate)}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, listingStartDate: formatToHourOnly(e.target.value)})}
                   required
                 />
                 {fundraisingForm.listingStartDate && (
@@ -1298,8 +1300,8 @@ function Nostromo() {
                 <label>Cliff End</label>
                 <input
                   type="datetime-local"
-                  value={fundraisingForm.cliffEndDate}
-                  onChange={(e) => setFundraisingForm({...fundraisingForm, cliffEndDate: e.target.value})}
+                  value={formatToHourOnly(fundraisingForm.cliffEndDate)}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, cliffEndDate: formatToHourOnly(e.target.value)})}
                   required
                 />
                 {fundraisingForm.cliffEndDate && (
@@ -1316,8 +1318,8 @@ function Nostromo() {
                 <label>Vesting End</label>
                 <input
                   type="datetime-local"
-                  value={fundraisingForm.vestingEndDate}
-                  onChange={(e) => setFundraisingForm({...fundraisingForm, vestingEndDate: e.target.value})}
+                  value={formatToHourOnly(fundraisingForm.vestingEndDate)}
+                  onChange={(e) => setFundraisingForm({...fundraisingForm, vestingEndDate: formatToHourOnly(e.target.value)})}
                   required
                 />
                 {fundraisingForm.vestingEndDate && (
@@ -1534,6 +1536,15 @@ function Nostromo() {
       )}
     </div>
   );
+
+  // Helper to format date to yyyy-MM-ddTHH:00
+  const formatToHourOnly = (val) => {
+    if (!val) return '';
+    const d = new Date(val);
+    d.setMinutes(0, 0, 0);
+    const pad = n => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;
+  };
 
   return (
     <div className="nostromo-container">
