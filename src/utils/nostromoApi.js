@@ -416,6 +416,8 @@ export async function createProject(qubicConnect, projectData) {
     destinationId: NOSTROMO_ADDRESS
   };
   
+  console.log('DEBUG projectData', JSON.stringify(txDetails.params, null, 2));
+  
   return await executeTransactionWithWallet(txDetails);
 }
 
@@ -644,7 +646,7 @@ export function uint64ToTokenName(uint64Value) {
 
 export function dateToQubicDate(date) {
   return {
-    year: date.getFullYear(),
+    year: date.getFullYear() % 100,
     month: date.getMonth() + 1,
     day: date.getDate(),
     hour: date.getHours()

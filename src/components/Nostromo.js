@@ -81,15 +81,56 @@ function Nostromo() {
     vestingEndDate: ''
   });
 
-  useEffect(() => {
-    loadPlatformData();
-  }, []);
+  // New: per-tab loaded state
+  const [dashboardLoaded, setDashboardLoaded] = useState(false);
+  const [tiersLoaded, setTiersLoaded] = useState(false);
+  const [votingLoaded, setVotingLoaded] = useState(false);
+  const [fundraisingLoaded, setFundraisingLoaded] = useState(false);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
+  const [portfolioLoaded, setPortfolioLoaded] = useState(false);
 
-  useEffect(() => {
-    if (isConnected && qubicConnect?.wallet?.publicKey) {
-      loadUserData();
+  // New: handleTabClick for lazy loading
+  const handleTabClick = async (tab) => {
+    setActiveTab(tab);
+    setLoading(true);
+    try {
+      if (tab === 'dashboard' && !dashboardLoaded) {
+        await loadPlatformData();
+        if (isConnected && qubicConnect?.wallet?.publicKey) await loadUserData();
+        setDashboardLoaded(true);
+      }
+      if (tab === 'tiers' && !tiersLoaded) {
+        if (isConnected && qubicConnect?.wallet?.publicKey) await loadUserData();
+        setTiersLoaded(true);
+      }
+      if (tab === 'voting' && !votingLoaded) {
+        await loadProjectsData();
+        setVotingLoaded(true);
+      }
+      if (tab === 'fundraising' && !fundraisingLoaded) {
+        await loadProjectsData();
+        setFundraisingLoaded(true);
+      }
+      if (tab === 'projects' && !projectsLoaded) {
+        await loadProjectsData();
+        setProjectsLoaded(true);
+      }
+      if (tab === 'portfolio' && !portfolioLoaded) {
+        if (isConnected && qubicConnect?.wallet?.publicKey) await loadUserData();
+        setPortfolioLoaded(true);
+      }
+    } catch (e) {
+      // error already handled in loaders
+    } finally {
+      setLoading(false);
     }
-  }, [isConnected, qubicConnect?.wallet?.publicKey]);
+  };
+
+  // On initial mount, load dashboard only
+  useEffect(() => {
+    handleTabClick('dashboard');
+    // eslint-disable-next-line
+  }, []);
 
   const showMessage = (text, type = 'success') => {
     setMessage({ text, type });
@@ -116,17 +157,10 @@ function Nostromo() {
       
       if (statsResult && statsResult.success) {
         console.log('[Nostromo] Platform stats decoded:', statsResult.decodedFields);
-        console.log('[Nostromo] Number of created projects:', statsResult.decodedFields?.numberOfCreatedProject);
-        console.log('[Nostromo] Number of registered users:', statsResult.decodedFields?.numberOfRegister);
-        console.log('[Nostromo] Number of fundraisings:', statsResult.decodedFields?.numberOfFundaraising);
         setPlatformStats(statsResult.decodedFields);
       } else {
         console.log('[Nostromo] Failed to get platform stats');
       }
-      
-      // Load some sample projects and fundraisings
-      await loadProjectsData();
-      
     } catch (error) {
       console.error('Error loading platform data:', error);
       showMessage('Failed to load platform data', 'error');
@@ -447,8 +481,11 @@ function Nostromo() {
       const projectData = {
         tokenName: tokenNameToUint64(projectForm.tokenName),
         supply: projectForm.supply,
-        ...dateToQubicDate(startDate),
-        endYear: endDate.getFullYear(),
+        startYear: startDate.getFullYear() % 100,
+        startMonth: startDate.getMonth() + 1,
+        startDay: startDate.getDate(),
+        startHour: startDate.getHours(),
+        endYear: endDate.getFullYear() % 100,
         endMonth: endDate.getMonth() + 1,
         endDay: endDate.getDate(),
         endHour: endDate.getHours()
@@ -505,45 +542,45 @@ function Nostromo() {
         indexOfProject: parseInt(fundraisingForm.indexOfProject),
         
         // Phase 1 dates
-        firstPhaseStartYear: firstPhaseStart.getFullYear(),
+        firstPhaseStartYear: firstPhaseStart.getFullYear() % 100,
         firstPhaseStartMonth: firstPhaseStart.getMonth() + 1,
         firstPhaseStartDay: firstPhaseStart.getDate(),
         firstPhaseStartHour: firstPhaseStart.getHours(),
-        firstPhaseEndYear: firstPhaseEnd.getFullYear(),
+        firstPhaseEndYear: firstPhaseEnd.getFullYear() % 100,
         firstPhaseEndMonth: firstPhaseEnd.getMonth() + 1,
         firstPhaseEndDay: firstPhaseEnd.getDate(),
         firstPhaseEndHour: firstPhaseEnd.getHours(),
         
         // Phase 2 dates
-        secondPhaseStartYear: secondPhaseStart.getFullYear(),
+        secondPhaseStartYear: secondPhaseStart.getFullYear() % 100,
         secondPhaseStartMonth: secondPhaseStart.getMonth() + 1,
         secondPhaseStartDay: secondPhaseStart.getDate(),
         secondPhaseStartHour: secondPhaseStart.getHours(),
-        secondPhaseEndYear: secondPhaseEnd.getFullYear(),
+        secondPhaseEndYear: secondPhaseEnd.getFullYear() % 100,
         secondPhaseEndMonth: secondPhaseEnd.getMonth() + 1,
         secondPhaseEndDay: secondPhaseEnd.getDate(),
         secondPhaseEndHour: secondPhaseEnd.getHours(),
         
         // Phase 3 dates
-        thirdPhaseStartYear: thirdPhaseStart.getFullYear(),
+        thirdPhaseStartYear: thirdPhaseStart.getFullYear() % 100,
         thirdPhaseStartMonth: thirdPhaseStart.getMonth() + 1,
         thirdPhaseStartDay: thirdPhaseStart.getDate(),
         thirdPhaseStartHour: thirdPhaseStart.getHours(),
-        thirdPhaseEndYear: thirdPhaseEnd.getFullYear(),
+        thirdPhaseEndYear: thirdPhaseEnd.getFullYear() % 100,
         thirdPhaseEndMonth: thirdPhaseEnd.getMonth() + 1,
         thirdPhaseEndDay: thirdPhaseEnd.getDate(),
         thirdPhaseEndHour: thirdPhaseEnd.getHours(),
         
         // Listing and vesting dates
-        listingStartYear: listingStart.getFullYear(),
+        listingStartYear: listingStart.getFullYear() % 100,
         listingStartMonth: listingStart.getMonth() + 1,
         listingStartDay: listingStart.getDate(),
         listingStartHour: listingStart.getHours(),
-        cliffEndYear: cliffEnd.getFullYear(),
+        cliffEndYear: cliffEnd.getFullYear() % 100,
         cliffEndMonth: cliffEnd.getMonth() + 1,
         cliffEndDay: cliffEnd.getDate(),
         cliffEndHour: cliffEnd.getHours(),
-        vestingEndYear: vestingEnd.getFullYear(),
+        vestingEndYear: vestingEnd.getFullYear() % 100,
         vestingEndMonth: vestingEnd.getMonth() + 1,
         vestingEndDay: vestingEnd.getDate(),
         vestingEndHour: vestingEnd.getHours(),
@@ -890,8 +927,6 @@ function Nostromo() {
             </button>
           </div>
         )}
-
-
 
         {userTier > 0 && userTier < 5 && (
           <div className="upgrade-section" style={{ border: '2px solid #00ff00', padding: '1rem', margin: '1rem 0' }}>
@@ -1434,37 +1469,37 @@ function Nostromo() {
       <div className="tabs">
         <button 
           className={activeTab === 'dashboard' ? 'active' : ''} 
-          onClick={() => setActiveTab('dashboard')}
+          onClick={() => handleTabClick('dashboard')}
         >
           🏠 Dashboard
         </button>
         <button 
           className={activeTab === 'tiers' ? 'active' : ''} 
-          onClick={() => setActiveTab('tiers')}
+          onClick={() => handleTabClick('tiers')}
         >
           👽 Tier Management
         </button>
         <button 
           className={activeTab === 'voting' ? 'active' : ''} 
-          onClick={() => setActiveTab('voting')}
+          onClick={() => handleTabClick('voting')}
         >
           🗳️ Vote on Projects
         </button>
         <button 
           className={activeTab === 'fundraising' ? 'active' : ''} 
-          onClick={() => setActiveTab('fundraising')}
+          onClick={() => handleTabClick('fundraising')}
         >
           💰 Invest in Fundraising
         </button>
         <button 
           className={activeTab === 'projects' ? 'active' : ''} 
-          onClick={() => setActiveTab('projects')}
+          onClick={() => handleTabClick('projects')}
         >
           🚀 Create Projects
         </button>
         <button 
           className={activeTab === 'portfolio' ? 'active' : ''} 
-          onClick={() => setActiveTab('portfolio')}
+          onClick={() => handleTabClick('portfolio')}
         >
           💼 Portfolio
         </button>
