@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import './Nostromo.css';
 import { WalletContext } from '../App';
 import {
@@ -89,6 +89,10 @@ function Nostromo() {
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [portfolioLoaded, setPortfolioLoaded] = useState(false);
 
+  // Add refs for loader locks
+  const loadingUserDataRef = useRef(false);
+  const loadingPlatformDataRef = useRef(false);
+
   // New: handleTabClick for lazy loading
   const handleTabClick = async (tab) => {
     setActiveTab(tab);
@@ -112,7 +116,8 @@ function Nostromo() {
         setFundraisingLoaded(true);
       }
       if (tab === 'projects' && !projectsLoaded) {
-        await loadProjectsData();
+        // Only load user data (for tier and user's own projects), not all projects/fundraisings
+        if (isConnected && qubicConnect?.wallet?.publicKey) await loadUserData();
         setProjectsLoaded(true);
       }
       if (tab === 'portfolio' && !portfolioLoaded) {
@@ -146,6 +151,8 @@ function Nostromo() {
   };
 
   const loadPlatformData = async () => {
+    if (loadingPlatformDataRef.current) return;
+    loadingPlatformDataRef.current = true;
     try {
       setLoading(true);
       const endpoint = formatEndpoint(httpEndpoint || localStorage.getItem('httpEndpoint') || 'localhost:8080');
@@ -166,6 +173,7 @@ function Nostromo() {
       showMessage('Failed to load platform data', 'error');
     } finally {
       setLoading(false);
+      loadingPlatformDataRef.current = false;
     }
   };
 
@@ -186,64 +194,36 @@ function Nostromo() {
         console.log('[Nostromo] Platform stats not available yet');
       }
       
+      // Only fetch first 5 projects and fundraisings, in parallel
+      const NUM_TO_FETCH = 5;
+      const projectIndexes = Array.from({ length: NUM_TO_FETCH }, (_, i) => i);
+      const fundraisingIndexes = Array.from({ length: NUM_TO_FETCH }, (_, i) => i);
+      
+      // Parallel fetch for projects
+      const projectPromises = projectIndexes.map(i => getProjectByIndex(endpoint, i, qHelper));
+      const projectResults = await Promise.allSettled(projectPromises);
       const projectsData = [];
+      projectResults.forEach((result, i) => {
+        if (result.status === 'fulfilled' && result.value && result.value.success && result.value.decodedFields) {
+          const project = result.value.decodedFields;
+          if (isValidProject(project)) {
+            projectsData.push({ index: projectIndexes[i], ...project });
+          }
+        }
+      });
+      
+      // Parallel fetch for fundraisings
+      const fundraisingPromises = fundraisingIndexes.map(i => getFundarasingByIndex(endpoint, i, qHelper));
+      const fundraisingResults = await Promise.allSettled(fundraisingPromises);
       const fundraisingsData = [];
-      
-      // Load first 10 projects
-      for (let i = 0; i < 10; i++) {
-        try {
-          const projectResult = await getProjectByIndex(endpoint, i, qHelper);
-          console.log(`[Nostromo] Raw project result for index ${i}:`, projectResult);
-          
-          if (projectResult && projectResult.success && projectResult.decodedFields) {
-            const project = projectResult.decodedFields;
-            console.log(`[Nostromo] Decoded project ${i}:`, project);
-            console.log(`[Nostromo] Project ${i} creator:`, project.creator);
-            console.log(`[Nostromo] Project ${i} tokenName:`, project.tokenName);
-            console.log(`[Nostromo] Project ${i} supplyOfToken:`, project.supplyOfToken);
-            console.log(`[Nostromo] Project ${i} validation result:`, isValidProject(project));
-            
-            // Only add projects that have actual data (not empty/default values)
-            if (isValidProject(project)) {
-              console.log(`[Nostromo] ✅ Adding valid project ${i}`);
-              projectsData.push({ index: i, ...project });
-            } else {
-              console.log(`[Nostromo] ❌ Skipping invalid project ${i}`);
-            }
-          } else {
-            console.log(`[Nostromo] No project result for index ${i}`);
+      fundraisingResults.forEach((result, i) => {
+        if (result.status === 'fulfilled' && result.value && result.value.success && result.value.decodedFields) {
+          const fundraising = result.value.decodedFields;
+          if (isValidFundraising(fundraising)) {
+            fundraisingsData.push({ index: fundraisingIndexes[i], ...fundraising });
           }
-        } catch (error) {
-          // Project doesn't exist or error occurred, continue to next
-          console.log(`[Nostromo] Error loading project ${i}:`, error);
-          continue;
         }
-      }
-      
-      // Load fundraisings with similar debugging
-      for (let i = 0; i < 10; i++) {
-        try {
-          const fundraisingResult = await getFundarasingByIndex(endpoint, i, qHelper);
-          console.log(`[Nostromo] Raw fundraising result for index ${i}:`, fundraisingResult);
-          
-          if (fundraisingResult && fundraisingResult.success && fundraisingResult.decodedFields) {
-            const fundraising = fundraisingResult.decodedFields;
-            console.log(`[Nostromo] Decoded fundraising ${i}:`, fundraising);
-            
-            // Only add fundraisings that have actual data
-            if (isValidFundraising(fundraising)) {
-              console.log(`[Nostromo] ✅ Adding valid fundraising ${i}`);
-              fundraisingsData.push({ index: i, ...fundraising });
-            } else {
-              console.log(`[Nostromo] ❌ Skipping invalid fundraising ${i}`);
-            }
-          }
-        } catch (error) {
-          // Fundraising doesn't exist, continue
-          console.log(`[Nostromo] Error loading fundraising ${i}:`, error);
-          continue;
-        }
-      }
+      });
       
       console.log('[Nostromo] Final results - Projects:', projectsData.length, 'Fundraisings:', fundraisingsData.length);
       console.log('[Nostromo] Valid projects:', projectsData);
@@ -258,6 +238,8 @@ function Nostromo() {
   };
 
   const loadUserData = async () => {
+    if (loadingUserDataRef.current) return;
+    loadingUserDataRef.current = true;
     try {
       const endpoint = formatEndpoint(httpEndpoint || localStorage.getItem('httpEndpoint') || 'localhost:8080');
       const userPublicKey = qubicConnect?.wallet?.publicKey;
@@ -293,6 +275,8 @@ function Nostromo() {
       
     } catch (error) {
       console.error('Error loading user data:', error);
+    } finally {
+      loadingUserDataRef.current = false;
     }
   };
 
