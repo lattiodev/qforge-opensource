@@ -971,6 +971,10 @@ function Nostromo() {
           2. After voting passes, create fundraising with detailed parameters
         </div>
         
+        <div className="message info" style={{ marginBottom: '1rem' }}>
+          <strong>⏰ All times are in UTC.</strong> Your local time will be converted to UTC for the contract.<br />
+        </div>
+        
         {userTier < 4 ? (
           <div className="message warning">
             You need to be Tier 4 (XENOMORPH) or higher to create projects
@@ -1009,6 +1013,14 @@ function Nostromo() {
                   onChange={(e) => setProjectForm({...projectForm, startDate: e.target.value})}
                   required
                 />
+                {projectForm.startDate && (
+                  <div style={{ fontSize: '0.85em', color: '#888' }}>
+                    UTC: {(() => {
+                      const d = new Date(projectForm.startDate);
+                      return d.toISOString().replace('T', ' ').substring(0, 16);
+                    })()}
+                  </div>
+                )}
               </div>
               <div className="form-field">
                 <label>Voting End Date</label>
@@ -1018,6 +1030,14 @@ function Nostromo() {
                   onChange={(e) => setProjectForm({...projectForm, endDate: e.target.value})}
                   required
                 />
+                {projectForm.endDate && (
+                  <div style={{ fontSize: '0.85em', color: '#888' }}>
+                    UTC: {(() => {
+                      const d = new Date(projectForm.endDate);
+                      return d.toISOString().replace('T', ' ').substring(0, 16);
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
             <button type="submit" className="btn btn-primary" disabled={loading}>
@@ -1034,6 +1054,10 @@ function Nostromo() {
           • Project must exist and voting must have passed (YES &gt; NO)<br />
           • Voting period must be completed<br />
           • Only project creator can create fundraising
+        </div>
+        
+        <div className="message info" style={{ marginBottom: '1rem' }}>
+          <strong>⏰ All times are in UTC.</strong> Your local time will be converted to UTC for the contract.<br />
         </div>
         
         {userTier < 4 ? (
@@ -1143,6 +1167,14 @@ function Nostromo() {
                   onChange={(e) => setFundraisingForm({...fundraisingForm, firstPhaseStartDate: e.target.value})}
                   required
                 />
+                {fundraisingForm.firstPhaseStartDate && (
+                  <div style={{ fontSize: '0.85em', color: '#888' }}>
+                    UTC: {(() => {
+                      const d = new Date(fundraisingForm.firstPhaseStartDate);
+                      return d.toISOString().replace('T', ' ').substring(0, 16);
+                    })()}
+                  </div>
+                )}
               </div>
               <div className="form-field">
                 <label>Phase 1 End</label>
@@ -1152,6 +1184,14 @@ function Nostromo() {
                   onChange={(e) => setFundraisingForm({...fundraisingForm, firstPhaseEndDate: e.target.value})}
                   required
                 />
+                {fundraisingForm.firstPhaseEndDate && (
+                  <div style={{ fontSize: '0.85em', color: '#888' }}>
+                    UTC: {(() => {
+                      const d = new Date(fundraisingForm.firstPhaseEndDate);
+                      return d.toISOString().replace('T', ' ').substring(0, 16);
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1166,6 +1206,14 @@ function Nostromo() {
                   onChange={(e) => setFundraisingForm({...fundraisingForm, secondPhaseStartDate: e.target.value})}
                   required
                 />
+                {fundraisingForm.secondPhaseStartDate && (
+                  <div style={{ fontSize: '0.85em', color: '#888' }}>
+                    UTC: {(() => {
+                      const d = new Date(fundraisingForm.secondPhaseStartDate);
+                      return d.toISOString().replace('T', ' ').substring(0, 16);
+                    })()}
+                  </div>
+                )}
               </div>
               <div className="form-field">
                 <label>Phase 2 End</label>
@@ -1175,6 +1223,14 @@ function Nostromo() {
                   onChange={(e) => setFundraisingForm({...fundraisingForm, secondPhaseEndDate: e.target.value})}
                   required
                 />
+                {fundraisingForm.secondPhaseEndDate && (
+                  <div style={{ fontSize: '0.85em', color: '#888' }}>
+                    UTC: {(() => {
+                      const d = new Date(fundraisingForm.secondPhaseEndDate);
+                      return d.toISOString().replace('T', ' ').substring(0, 16);
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1189,6 +1245,14 @@ function Nostromo() {
                   onChange={(e) => setFundraisingForm({...fundraisingForm, thirdPhaseStartDate: e.target.value})}
                   required
                 />
+                {fundraisingForm.thirdPhaseStartDate && (
+                  <div style={{ fontSize: '0.85em', color: '#888' }}>
+                    UTC: {(() => {
+                      const d = new Date(fundraisingForm.thirdPhaseStartDate);
+                      return d.toISOString().replace('T', ' ').substring(0, 16);
+                    })()}
+                  </div>
+                )}
               </div>
               <div className="form-field">
                 <label>Phase 3 End</label>
@@ -1198,6 +1262,14 @@ function Nostromo() {
                   onChange={(e) => setFundraisingForm({...fundraisingForm, thirdPhaseEndDate: e.target.value})}
                   required
                 />
+                {fundraisingForm.thirdPhaseEndDate && (
+                  <div style={{ fontSize: '0.85em', color: '#888' }}>
+                    UTC: {(() => {
+                      const d = new Date(fundraisingForm.thirdPhaseEndDate);
+                      return d.toISOString().replace('T', ' ').substring(0, 16);
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1212,6 +1284,14 @@ function Nostromo() {
                   onChange={(e) => setFundraisingForm({...fundraisingForm, listingStartDate: e.target.value})}
                   required
                 />
+                {fundraisingForm.listingStartDate && (
+                  <div style={{ fontSize: '0.85em', color: '#888' }}>
+                    UTC: {(() => {
+                      const d = new Date(fundraisingForm.listingStartDate);
+                      return d.toISOString().replace('T', ' ').substring(0, 16);
+                    })()}
+                  </div>
+                )}
                 <small>When TGE tokens unlock</small>
               </div>
               <div className="form-field">
@@ -1222,6 +1302,14 @@ function Nostromo() {
                   onChange={(e) => setFundraisingForm({...fundraisingForm, cliffEndDate: e.target.value})}
                   required
                 />
+                {fundraisingForm.cliffEndDate && (
+                  <div style={{ fontSize: '0.85em', color: '#888' }}>
+                    UTC: {(() => {
+                      const d = new Date(fundraisingForm.cliffEndDate);
+                      return d.toISOString().replace('T', ' ').substring(0, 16);
+                    })()}
+                  </div>
+                )}
                 <small>When vesting starts</small>
               </div>
               <div className="form-field">
@@ -1232,6 +1320,14 @@ function Nostromo() {
                   onChange={(e) => setFundraisingForm({...fundraisingForm, vestingEndDate: e.target.value})}
                   required
                 />
+                {fundraisingForm.vestingEndDate && (
+                  <div style={{ fontSize: '0.85em', color: '#888' }}>
+                    UTC: {(() => {
+                      const d = new Date(fundraisingForm.vestingEndDate);
+                      return d.toISOString().replace('T', ' ').substring(0, 16);
+                    })()}
+                  </div>
+                )}
                 <small>When all tokens unlock</small>
               </div>
             </div>
