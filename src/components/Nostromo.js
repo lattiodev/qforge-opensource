@@ -87,7 +87,6 @@ function Nostromo() {
   const [votingLoaded, setVotingLoaded] = useState(false);
   const [fundraisingLoaded, setFundraisingLoaded] = useState(false);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
-  const [portfolioLoaded, setPortfolioLoaded] = useState(false);
 
   // Add refs for loader locks
   const loadingUserDataRef = useRef(false);
@@ -119,10 +118,6 @@ function Nostromo() {
         // Only load user data (for tier and user's own projects), not all projects/fundraisings
         if (isConnected && qubicConnect?.wallet?.publicKey) await loadUserData();
         setProjectsLoaded(true);
-      }
-      if (tab === 'portfolio' && !portfolioLoaded) {
-        if (isConnected && qubicConnect?.wallet?.publicKey) await loadUserData();
-        setPortfolioLoaded(true);
       }
     } catch (e) {
       // error already handled in loaders
@@ -830,30 +825,6 @@ function Nostromo() {
     <div>
       {renderPlatformStats()}
       {renderUserTierStatus()}
-      
-      {isConnected && userInvestmentStats && (
-        <div className="platform-stats">
-          <h3>💼 Your Portfolio</h3>
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-value">{userInvestmentStats.numberOfInvestedProjects || 0}</div>
-              <div className="stat-label">Invested Projects</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">{userInvestmentStats.numberOfClaimedProjects || 0}</div>
-              <div className="stat-label">Claimed Projects</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">{userVoteStatus?.numberOfVotedProjects || 0}</div>
-              <div className="stat-label">Voted Projects</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">{userProjects.length || 0}</div>
-              <div className="stat-label">Created Projects</div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 
@@ -1343,6 +1314,48 @@ function Nostromo() {
     </div>
   );
 
+  const [currentTick, setCurrentTick] = useState(null);
+  const [currentTickDate, setCurrentTickDate] = useState(null);
+
+  useEffect(() => {
+    // Fetch current tick and update state
+    async function fetchTick() {
+      if (qubicConnect && qubicConnect.getTick) {
+        const tick = await qubicConnect.getTick();
+        setCurrentTick(tick);
+        setCurrentTickDate(tickToUTC(tick));
+      }
+    }
+    fetchTick();
+    const interval = setInterval(fetchTick, 10000); // update every 10s
+    return () => clearInterval(interval);
+  }, [qubicConnect]);
+
+  // Helper to pack date to contract uint32 (year, month, day, hour, 0, 0)
+  function packQuotteryDate(year, month, day, hour) {
+    // Contract packs as: (((((year * 100 + month) * 100 + day) * 100 + hour) * 100 + 0) * 100 + 0)
+    // But let's match C logic: ((((((year * 100 + month) * 100 + day) * 100 + hour) * 100 + minute) * 100 + second))
+    return ((((((year % 100) * 100 + month) * 100 + day) * 100 + hour) * 100 + 0) * 100 + 0);
+  }
+
+  // Helper to unpack contract uint32 to {year, month, day, hour}
+  function unpackQuotteryDate(packed) {
+    let val = packed;
+    const second = val % 100; val = Math.floor(val / 100);
+    const minute = val % 100; val = Math.floor(val / 100);
+    const hour = val % 100; val = Math.floor(val / 100);
+    const day = val % 100; val = Math.floor(val / 100);
+    const month = val % 100; val = Math.floor(val / 100);
+    const year = val % 100;
+    return { year: 2000 + year, month, day, hour };
+  }
+
+  // Helper to format unpacked date as string
+  function formatUnpackedDate({ year, month, day, hour }) {
+    const pad = n => n.toString().padStart(2, '0');
+    return `${year}-${pad(month)}-${pad(day)} ${pad(hour)}:00 UTC`;
+  }
+
   const renderVoting = () => (
     <div>
       <h3>🗳️ Projects Awaiting Your Vote</h3>
@@ -1352,7 +1365,12 @@ function Nostromo() {
         • Projects need YES &gt; NO to proceed to fundraising<br />
         • You can vote on up to 64 projects per epoch
       </div>
-      
+      <div className="message info" style={{ marginBottom: '1rem' }}>
+        <strong>Current UTC:</strong> {(() => {
+          const now = new Date();
+          return now.getUTCFullYear() + '-' + (now.getUTCMonth()+1).toString().padStart(2, '0') + '-' + now.getUTCDate().toString().padStart(2, '0') + ' ' + now.getUTCHours().toString().padStart(2, '0') + ':00 UTC';
+        })()}
+      </div>
       {!isConnected ? (
         <div className="message warning">
           Connect your wallet to vote on projects
@@ -1373,17 +1391,33 @@ function Nostromo() {
             // Add debugging info
             console.log('[Nostromo] Rendering project:', project);
             
+            const start = unpackQuotteryDate(project.startDate);
+            const end = unpackQuotteryDate(project.endDate);
+            const now = new Date();
+            const nowPacked = packQuotteryDate(now.getUTCFullYear(), now.getUTCMonth()+1, now.getUTCDate(), now.getUTCHours());
+            const votingActive = nowPacked >= project.startDate && nowPacked < project.endDate;
             return (
               <div key={project.index} className="project-card">
                 <div className="project-header">
                   <div className="project-name">
                     {uint64ToTokenName(project.tokenName)}
                   </div>
-                  <div className="project-status status-voting">
-                    🗳️ Voting Active
+                  <div className={`project-status ${votingActive ? 'status-voting' : 'status-inactive'}`}> 
+                    {votingActive ? '🗳️ Voting Active' : 'Voting Not Active'}
                   </div>
                 </div>
-                
+                <div>
+                  <strong>Voting Start (UTC):</strong> {formatUnpackedDate(start)}
+                </div>
+                <div>
+                  <strong>Voting End (UTC):</strong> {formatUnpackedDate(end)}
+                </div>
+                <div>
+                  <strong>Current UTC:</strong> {(() => {
+                    const now = new Date();
+                    return now.getUTCFullYear() + '-' + (now.getUTCMonth()+1).toString().padStart(2, '0') + '-' + now.getUTCDate().toString().padStart(2, '0') + ' ' + now.getUTCHours().toString().padStart(2, '0') + ':00 UTC';
+                  })()}
+                </div>
                 <div>
                   <strong>Creator:</strong> {project.creator ? `${project.creator.substring(0, 8)}...${project.creator.substring(project.creator.length - 8)}` : 'Unknown'}
                 </div>
@@ -1522,21 +1556,6 @@ function Nostromo() {
     </div>
   );
 
-  const renderPortfolio = () => (
-    <div>
-      <h3>💼 Your Investment Portfolio</h3>
-      {!isConnected ? (
-        <div className="message warning">
-          Connect your wallet to view your portfolio
-        </div>
-      ) : (
-        <div className="loading-overlay">
-          <div>Portfolio functionality coming soon...</div>
-        </div>
-      )}
-    </div>
-  );
-
   // Helper to format date to yyyy-MM-ddTHH:00
   const formatToHourOnly = (val) => {
     if (!val) return '';
@@ -1544,6 +1563,13 @@ function Nostromo() {
     d.setMinutes(0, 0, 0);
     const pad = n => n.toString().padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;
+  };
+
+  // Helper to convert tick to UTC date (assuming 1 tick = 1 second)
+  const tickToUTC = (tick) => {
+    // Qubic tick 0 = Jan 1, 2024 00:00:00 UTC
+    const TICK0 = Date.UTC(2024, 0, 1, 0, 0, 0, 0);
+    return new Date(TICK0 + tick * 1000);
   };
 
   return (
@@ -1588,12 +1614,6 @@ function Nostromo() {
         >
           🚀 Create Projects
         </button>
-        <button 
-          className={activeTab === 'portfolio' ? 'active' : ''} 
-          onClick={() => handleTabClick('portfolio')}
-        >
-          💼 Portfolio
-        </button>
       </div>
 
       <div className="tab-content">
@@ -1609,7 +1629,6 @@ function Nostromo() {
         {!loading && activeTab === 'voting' && renderVoting()}
         {!loading && activeTab === 'fundraising' && renderFundraising()}
         {!loading && activeTab === 'projects' && renderProjects()}
-        {!loading && activeTab === 'portfolio' && renderPortfolio()}
       </div>
     </div>
   );
