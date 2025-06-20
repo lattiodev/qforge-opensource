@@ -95,6 +95,38 @@ export const RPC_CONFIGS = {
       'QSWAP': 13,
       // Add your testnet-specific contract indexes here
     }
+  },
+  'https://testnet-nostromo.qubicdev.com': {
+    name: 'Nostromo Testnet',
+    indexes: {
+      'QX': 1,
+      'Qx': 1,
+      'QUOTTERY': 2,
+      'Quottery': 2,
+      'RANDOM': 3,
+      'Random': 3,
+      'QUTIL': 4,
+      'QUtil': 4,
+      'MLM': 5,
+      'Mlm': 5,
+      'GQMPROP': 6,
+      'Gqmprop': 6,
+      'SWATCH': 7,
+      'Swatch': 7,
+      'CCF': 8,
+      'Ccf': 8,
+      'QSWAP': 9,
+      'Qswap': 9,
+      'QVAULT': 10,
+      'Qvault': 10,
+      'MSVAULT': 11,
+      'Msvault': 11,
+      'QBAY': 12,
+      'Qbay': 12,
+      'NOSTROMO': 13,
+      'Nostromo': 13,
+      'nostromo': 13
+    }
   }
 };
 

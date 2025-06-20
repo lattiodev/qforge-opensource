@@ -54,7 +54,8 @@ export async function queryContract(httpEndpoint, contractIndex, functionIndex, 
     }
 
     let url = `${endpoint}/v1/querySmartContract`;
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === 'development' && endpoint.includes('rpc.qubic.org')) {
+      // Only use proxy for mainnet endpoint to avoid CORS
       url = `/api/proxy/v1/querySmartContract`;
     }
     
@@ -86,7 +87,7 @@ export async function queryContract(httpEndpoint, contractIndex, functionIndex, 
       console.log('[contractApi] Full response keys:', Object.keys(json));
       
       // If proxy returns empty data, try direct call as fallback
-      if (process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === 'development' && endpoint.includes('rpc.qubic.org')) {
         console.log('[contractApi] Proxy returned empty data, trying direct call...');
         
         const directUrl = `${endpoint}/v1/querySmartContract`;
@@ -297,7 +298,8 @@ export async function executeTransaction(httpEndpoint, contractIndex, procedureI
     let corsOptions = {};
 
     // If we're in development, use the local proxy to avoid CORS issues
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === 'development' && endpoint.includes('rpc.qubic.org')) {
+      // Only use proxy for mainnet endpoint to avoid CORS
       url = `/api/proxy/v1/submitTransaction`;
     }
     

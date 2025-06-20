@@ -96,12 +96,19 @@ const ContractUI = () => {
     }
   }, [contextBalance]);
 
-  // Auto-switch to testnet when QSwap is selected
+  // Auto-switch to testnet when QSwap or Nostromo is selected
   useEffect(() => {
     if (currentView === VIEWS.QSWAP) {
       const testnetEndpoint = 'https://testnet-rpc.qubicdev.com/';
       if (httpEndpoint !== testnetEndpoint) {
+        console.log("Switching to QSwap testnet");
         updateHttpEndpoint(testnetEndpoint);
+      }
+    } else if (currentView === VIEWS.NOSTROMO) {
+      const nostromoTestnetEndpoint = 'https://testnet-nostromo.qubicdev.com/';
+      if (httpEndpoint !== nostromoTestnetEndpoint) {
+        console.log("Switching to Nostromo testnet");
+        updateHttpEndpoint(nostromoTestnetEndpoint);
       }
     }
   }, [currentView, httpEndpoint, updateHttpEndpoint]);

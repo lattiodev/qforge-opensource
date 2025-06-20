@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useQubicConnect } from '../context/QubicConnectContext';
-import { CheckCircleIcon, BeakerIcon, CloudIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, BeakerIcon, CloudIcon, RocketLaunchIcon } from '@heroicons/react/24/outline';
 import { RPC_CONFIGS } from '../context/QubicConnectContext';
 
 // Define standard endpoints
 const MAINNET_URL = 'https://rpc.qubic.org';
 const TESTNET_URL = 'https://testnet-rpc.qubicdev.com'; // Use the user's proxy URL
+const NOSTROMO_TESTNET_URL = 'https://testnet-nostromo.qubicdev.com';
 
 const EndpointSetting = () => {
   const { httpEndpoint, updateHttpEndpoint } = useQubicConnect();
@@ -65,6 +66,21 @@ const EndpointSetting = () => {
     }
   };
 
+  // --- Add handler for Nostromo Testnet button ---
+  const handleSetNostromoTestnetEndpoint = () => {
+    const nostromoTestnetUrl = NOSTROMO_TESTNET_URL;
+    setRpcInputValue(nostromoTestnetUrl);
+    try {
+      updateHttpEndpoint(nostromoTestnetUrl);
+      setRpcSaveStatus('saved');
+      setTimeout(() => setRpcSaveStatus(''), 2000);
+    } catch (error) {
+      console.error("Failed to save Nostromo Testnet RPC endpoint:", error);
+      setRpcSaveStatus('error');
+      setTimeout(() => setRpcSaveStatus(''), 3000);
+    }
+  };
+
   const getCurrentRpcConfig = () => {
     return RPC_CONFIGS[httpEndpoint];
   };
@@ -90,7 +106,7 @@ const EndpointSetting = () => {
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-4 gap-2">
         <button
           onClick={handleSetMainnetEndpoint}
           title={`Set to Mainnet RPC (${MAINNET_URL})`}
@@ -106,6 +122,14 @@ const EndpointSetting = () => {
         >
           <BeakerIcon className="h-4 w-4" />
           Testnet
+        </button>
+        <button
+          onClick={handleSetNostromoTestnetEndpoint}
+          title={`Set to Nostromo Testnet RPC (${NOSTROMO_TESTNET_URL})`}
+          className="px-2 py-1.5 rounded text-sm bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center gap-1"
+        >
+          <RocketLaunchIcon className="h-4 w-4" />
+          Nostromo
         </button>
         <button
           onClick={handleSaveRpcEndpoint}
