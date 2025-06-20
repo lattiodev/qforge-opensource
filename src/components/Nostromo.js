@@ -8,7 +8,6 @@ import {
   getProjectByIndex,
   getFundarasingByIndex,
   checkTokenCreatability,
-  getNumberOfInvestedAndClaimedProjects,
   getProjectIndexListByCreator,
   registerInTier,
   logoutFromTier,
@@ -43,7 +42,6 @@ function Nostromo() {
   const [platformStats, setPlatformStats] = useState(null);
   const [userTier, setUserTier] = useState(0);
   const [userVoteStatus, setUserVoteStatus] = useState(null);
-  const [userInvestmentStats, setUserInvestmentStats] = useState(null);
   
   // Projects data
   const [projects, setProjects] = useState([]);
@@ -254,12 +252,6 @@ function Nostromo() {
       const voteResult = await getUserVoteStatus(endpoint, userPublicKey, qHelper);
       if (voteResult && voteResult.success) {
         setUserVoteStatus(voteResult.decodedFields);
-      }
-      
-      // Get investment stats
-      const investmentResult = await getNumberOfInvestedAndClaimedProjects(endpoint, userPublicKey, qHelper);
-      if (investmentResult && investmentResult.success) {
-        setUserInvestmentStats(investmentResult.decodedFields);
       }
       
       // Get user's projects
