@@ -631,8 +631,12 @@ const ContractUI = () => {
                 Contracts
               </button>
               <button
-                disabled
-                className="px-3 py-1.5 rounded text-sm font-medium transition-colors bg-gray-600 text-gray-500 cursor-not-allowed opacity-50"
+                onClick={() => setCurrentView(VIEWS.QSWAP)}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  currentView === VIEWS.QSWAP
+                    ? 'bg-purple-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
               >
                 <ArrowsUpDownIcon className="h-4 w-4 inline mr-1" />
                 QSwap
