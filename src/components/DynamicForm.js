@@ -1,5 +1,6 @@
 // src/components/DynamicForm.js
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 
 const DynamicForm = ({ fields, onSubmit, isTransaction = false, onValuesChange = () => {}, hideSubmitButton = false }) => {
   const initializeState = () => {
@@ -156,6 +157,14 @@ const DynamicForm = ({ fields, onSubmit, isTransaction = false, onValuesChange =
       )}
     </form>
   );
+};
+
+DynamicForm.propTypes = {
+  fields: PropTypes.array.isRequired,
+  onSubmit: PropTypes.func.isRequired,
+  isTransaction: PropTypes.bool,
+  onValuesChange: PropTypes.func,
+  hideSubmitButton: PropTypes.bool,
 };
 
 export default DynamicForm;

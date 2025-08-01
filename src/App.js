@@ -1,5 +1,5 @@
 // src/App.js
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, createContext } from 'react';
 import DynamicForm from './components/DynamicForm';
 import { QubicConnectProvider, useQubicConnect } from './context/QubicConnectContext';
 import { queryContract, discoverContractFees, mightRequireFee } from './utils/contractApi';
@@ -8,23 +8,31 @@ import { parseContract, byteArrayToHexString } from './utils/contractUtils';
 import ConnectLink from './components/qubic/connect/ConnectLink';
 import ConfirmTxModal from './components/qubic/connect/ConfirmTxModal';
 import FaucetModal from './components/qubic/FaucetModal';
+import QSwap from './components/QSwap';
+import Nostromo from './components/Nostromo';
 import { 
     InformationCircleIcon, PlusIcon, MagnifyingGlassIcon, CheckCircleIcon, 
     CurrencyDollarIcon, CodeBracketIcon, BeakerIcon, Cog6ToothIcon,
-    WalletIcon, PaperAirplaneIcon, ExclamationTriangleIcon, LinkIcon, ChevronUpIcon
+    WalletIcon, PaperAirplaneIcon, ExclamationTriangleIcon, LinkIcon, ChevronUpIcon,
+    ArrowsUpDownIcon, RocketLaunchIcon
 } from '@heroicons/react/24/outline';
 import './App.css';
 import EndpointSetting from './components/EndpointSetting';
 import ContractIndexManager from './components/ContractIndexManager';
 
-// Define view constants - Remove Wallet Management
+// Create WalletContext to share with components
+export const WalletContext = createContext();
+
+// Define view constants - Add QSwap and Nostromo
 const VIEWS = {
     CONTRACT_EXPLORER: 'contract_explorer',
-    // WALLET_MANAGEMENT: 'wallet_management',
+    QSWAP: 'qswap',
+    NOSTROMO: 'nostromo',
 };
 
 // Component that uses the QubicConnect context
 const ContractUI = () => {
+  const [currentView, setCurrentView] = useState(VIEWS.CONTRACT_EXPLORER);
   const [contracts, setContracts] = useState([]);
   const [selectedContract, setSelectedContract] = useState(null);
   const [selectedFunction, setSelectedFunction] = useState(null);
@@ -73,8 +81,37 @@ const ContractUI = () => {
       broadcastTx, 
       getTick, 
       signTransaction,
-      contractIndexes
+      contractIndexes,
+      updateHttpEndpoint
   } = fullQubicConnectContext; 
+
+  // Format balance for display
+  const formattedBalance = useMemo(() => {
+    if (!contextBalance) return null;
+    try {
+      const balanceInQubic = BigInt(contextBalance);
+      return balanceInQubic.toLocaleString();
+    } catch {
+      return null;
+    }
+  }, [contextBalance]);
+
+  // Auto-switch to testnet when QSwap or Nostromo is selected
+  useEffect(() => {
+    if (currentView === VIEWS.QSWAP) {
+      const testnetEndpoint = 'https://testnet-rpc.qubicdev.com/';
+      if (httpEndpoint !== testnetEndpoint) {
+        console.log("Switching to QSwap testnet");
+        updateHttpEndpoint(testnetEndpoint);
+      }
+    } else if (currentView === VIEWS.NOSTROMO) {
+      const nostromoTestnetEndpoint = 'https://testnet-nostromo.qubicdev.com/';
+      if (httpEndpoint !== nostromoTestnetEndpoint) {
+        console.log("Switching to Nostromo testnet");
+        updateHttpEndpoint(nostromoTestnetEndpoint);
+      }
+    }
+  }, [currentView, httpEndpoint, updateHttpEndpoint]);
 
   useEffect(() => {
     async function loadContractsList() {
@@ -504,7 +541,7 @@ const ContractUI = () => {
             <li>Basic types: `uint8`-`uint64`, `sint8`-`sint64`, `bit`, `bool`</li>
             <li>Identity: `id` (60-char string)</li>
             <li>Fixed string: `char[size]`</li>
-            <li>Arrays: `Array&lt;type, size&gt;` (Input as JSON string, e.g., `["value1", "value2"]` or `[1, 2, 3]`)</li>
+            <li>Arrays: `Array&lt;type, size&gt;` (Input as JSON string, e.g., [`&quot;value1&quot;`, `&quot;value2&quot;`] or [1, 2, 3])</li>
             <li>Complex: `ProposalDataT` (Input as JSON string)</li>
          </ul>
          <p className="text-[0.7rem] text-gray-500 mt-1">Note: Size for Arrays can be a number or known contract constant (e.g., `MSVAULT_MAX_OWNERS`). Nested complex types within arrays may have limitations.</p>
@@ -513,19 +550,6 @@ const ContractUI = () => {
          </p>
       </div>
   );
-
-  // Format the balance from the context (assuming NO conversion - as per previous step)
-  const formattedBalance = useMemo(() => {
-      if (contextBalance !== null && contextBalance !== undefined) {
-          try {
-              return BigInt(contextBalance).toString(); 
-          } catch (e) {
-               console.error("Error formatting balance:", e);
-               return 'Error'; 
-          }
-      }
-      return null;
-  }, [contextBalance]);
 
   // --- Send QUBIC Logic (moved from WalletManagementPage) --- 
   const handleSendQubic = async (e) => {
@@ -583,467 +607,518 @@ const ContractUI = () => {
   // --- End Send QUBIC Logic ---
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-200 p-4 md:p-6 font-sans">
-      <div className="flex justify-between items-center mb-6 gap-4 border-b border-gray-700 pb-4">
-        <h1 className="text-2xl font-bold text-white flex-shrink-0">QForge</h1>
-        <div className="flex items-center gap-2 sm:gap-3">
-           {/* Remove the view toggle button */}
-           {/* <button ... /> */}
-          <button
-            onClick={() => setShowFaucetModal(true)}
-            disabled={!connected}
-            className={`px-3 py-2 rounded font-semibold text-sm transition duration-150 ease-in-out flex items-center whitespace-nowrap ${!connected ? 'bg-gray-600 opacity-50 cursor-not-allowed text-gray-400' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}
-            title={connected ? "Open Faucet" : "Connect wallet to use faucet"}
-          >
-             <CurrencyDollarIcon className="h-5 w-5 mr-1.5"/> Faucet
-          </button>
-          <ConnectLink />
+    <WalletContext.Provider value={{
+      qubicConnect: fullQubicConnectContext,
+      isConnected: connected,
+      httpEndpoint,
+      qHelper: fullQubicConnectContext?.qHelper
+    }}>
+      <div className="min-h-screen bg-gray-900 text-gray-200 p-4 md:p-6 font-sans">
+        <div className="flex justify-between items-center mb-6 gap-4 border-b border-gray-700 pb-4">
+          <h1 className="text-2xl font-bold text-white flex-shrink-0">QForge</h1>
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* View toggle buttons */}
+            <div className="flex gap-1 bg-gray-800 rounded-lg p-1">
+              <button
+                onClick={() => setCurrentView(VIEWS.CONTRACT_EXPLORER)}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  currentView === VIEWS.CONTRACT_EXPLORER
+                    ? 'bg-purple-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <CodeBracketIcon className="h-4 w-4 inline mr-1" />
+                Contracts
+              </button>
+              <button
+                onClick={() => setCurrentView(VIEWS.QSWAP)}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  currentView === VIEWS.QSWAP
+                    ? 'bg-purple-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <ArrowsUpDownIcon className="h-4 w-4 inline mr-1" />
+                QSwap
+              </button>
+              <button
+                onClick={() => setCurrentView(VIEWS.NOSTROMO)}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  currentView === VIEWS.NOSTROMO
+                    ? 'bg-purple-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <RocketLaunchIcon className="h-4 w-4 inline mr-1" />
+                Nostromo
+              </button>
+            </div>
+            <button
+              onClick={() => setShowFaucetModal(true)}
+              disabled={!connected}
+              className={`px-3 py-2 rounded font-semibold text-sm transition duration-150 ease-in-out flex items-center whitespace-nowrap ${!connected ? 'bg-gray-600 opacity-50 cursor-not-allowed text-gray-400' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}
+              title={connected ? "Open Faucet" : "Connect wallet to use faucet"}
+            >
+               <CurrencyDollarIcon className="h-5 w-5 mr-1.5"/> Faucet
+            </button>
+            <ConnectLink />
+          </div>
         </div>
-      </div>
 
-      {/* Main layout: Sidebar + Content Area */}
-      <div className="flex flex-col md:flex-row gap-4">
-            {/* --- Left Sidebar (Existing Widgets) --- */}
-            <div className="md:w-1/4 flex flex-col gap-4">
-              {/* RPC Endpoint */}
-              <div className="bg-gray-800 p-4 rounded-lg shadow">
-                <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-                  <h2 className="text-lg font-semibold text-white flex items-center">
-                    <Cog6ToothIcon className="h-5 w-5 mr-2"/> RPC Endpoint
-                  </h2>
-                  <button onClick={() => setShowRpcEndpoint(!showRpcEndpoint)} className="text-gray-400 hover:text-white">
-                    <ChevronUpIcon className={`h-5 w-5 transition-transform ${!showRpcEndpoint ? 'rotate-180' : ''}`} />
-                  </button>
-                </div>
-                {showRpcEndpoint && (
-                  <EndpointSetting />
-                )}
-              </div>
-
-              {/* Wallet Info */}
-              <div className="bg-gray-800 p-4 rounded-lg shadow">
-                <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-                  <h2 className="text-lg font-semibold text-white flex items-center">
-                    <WalletIcon className="h-5 w-5 mr-2"/> Wallet Info
-                  </h2>
-                  <button onClick={() => setShowWalletInfo(!showWalletInfo)} className="text-gray-400 hover:text-white">
-                    <ChevronUpIcon className={`h-5 w-5 transition-transform ${!showWalletInfo ? 'rotate-180' : ''}`} />
-                  </button>
-                </div>
-                {showWalletInfo && (
-                  <>
-                      {!connected ? (
-                          <div className="flex items-center p-3 bg-yellow-900 bg-opacity-40 border border-yellow-700 rounded-lg text-yellow-200 text-sm">
-                             <InformationCircleIcon className="h-5 w-5 mr-2 flex-shrink-0"/> Please connect your wallet.
-                          </div>
-                      ) : (
-                          <div className="space-y-3 text-sm max-h-60 overflow-y-auto pr-1">
-                             <div>
-                                 <span className="font-medium text-gray-400">Status:</span>
-                                 <span className="ml-2 text-green-400">Connected</span>
-                             </div>
-                              <div>
-                                 <span className="font-medium text-gray-400">Public Key:</span>
-                                 <span className="ml-2 font-mono break-all">{wallet.publicKey}</span>
-                             </div>
-                              <div>
-                                 <span className="font-medium text-gray-400">Balance:</span>
-                                 {isBalanceLoading ? (
-                                     <span className="ml-2 text-gray-400 italic">Loading...</span>
-                                 ) : contextBalanceError ? (
-                                     <span className="ml-2 text-red-400">{contextBalanceError}</span>
-                                 ) : formattedBalance !== null ? (
-                                      <span className="ml-2 font-semibold text-lg">{formattedBalance} <span className="text-xs">QUBIC</span></span>
-                                 ) : (
-                                     <span className="ml-2 text-gray-500 italic">N/A</span>
-                                 )}
-                             </div>
-                              {/* Owned Assets */}
-                              <div>
-                                 <span className="font-medium text-gray-400">Owned Assets:</span>
-                                 {isAssetsLoading ? (
-                                     <span className="ml-2 text-gray-400 italic">Loading...</span>
-                                 ) : assetsError ? (
-                                     <span className="ml-2 text-red-400">{assetsError}</span>
-                                 ) : ownedAssets && ownedAssets.length > 0 ? (
-                                     <ul className="ml-2 list-none space-y-1 mt-1">
-                                         {ownedAssets.map((asset, index) => (
-                                             <li key={`owned-${index}`} className="font-mono text-xs bg-gray-700 px-2 py-1 rounded break-all">
-                                                 {asset?.data?.numberOfUnits ? `${asset.data.numberOfUnits} x ` : ''}
-                                                 {asset?.data?.issuedAsset?.name || 'Unknown Asset'}
-                                             </li>
-                                         ))}
-                                     </ul>
-                                 ) : (
-                                     <span className="ml-2 text-gray-500 italic">No assets found.</span>
-                                 )}
-                             </div>
-                             {/* Possessed Assets */}
-                              <div>
-                                 <span className="font-medium text-gray-400">Possessed Assets:</span>
-                                 {isPossessedAssetsLoading ? (
-                                     <span className="ml-2 text-gray-400 italic">Loading...</span>
-                                 ) : possessedAssetsError ? (
-                                     <span className="ml-2 text-red-400">{possessedAssetsError}</span>
-                                 ) : possessedAssets && possessedAssets.length > 0 ? (
-                                     <ul className="ml-2 list-none space-y-1 mt-1">
-                                         {possessedAssets.map((asset, index) => (
-                                             <li key={`possessed-${index}`} className="font-mono text-xs bg-gray-700 px-2 py-1 rounded break-all">
-                                                 {asset?.data?.numberOfUnits ? `${asset.data.numberOfUnits} x ` : ''}
-                                                 {asset?.data?.ownedAsset?.issuedAsset?.name || asset?.data?.issuedAsset?.name || 'Unknown Asset'}
-                                             </li>
-                                         ))}
-                                     </ul>
-                                 ) : (
-                                     <span className="ml-2 text-gray-500 italic">No possessed assets found.</span>
-                                 )}
-                             </div>
-                         </div>
-                      )}
-                  </>
-                )}
-              </div>
-
-              {/* Contract Index Manager */}
-              <div className="bg-gray-800 p-4 rounded-lg shadow">
-                <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-                  <h2 className="text-lg font-semibold text-white flex items-center">
-                    <Cog6ToothIcon className="h-5 w-5 mr-2"/> Contract Indexes
-                  </h2>
-                  <button onClick={() => setShowContractIndexes(!showContractIndexes)} className="text-gray-400 hover:text-white">
-                    <ChevronUpIcon className={`h-5 w-5 transition-transform ${!showContractIndexes ? 'rotate-180' : ''}`} />
-                  </button>
-                </div>
-                {showContractIndexes && <ContractIndexManager />}
-              </div>
-
-              {/* Send QUBIC */}
-              <div className="bg-gray-800 p-4 rounded-lg shadow">
+        {/* Main layout: Sidebar + Content Area */}
+        <div className="flex flex-col md:flex-row gap-4">
+              {/* --- Left Sidebar (Existing Widgets) --- */}
+              <div className="md:w-1/4 flex flex-col gap-4">
+                {/* RPC Endpoint */}
+                <div className="bg-gray-800 p-4 rounded-lg shadow">
                   <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-                      <h2 className="text-lg font-semibold text-white flex items-center">
-                           <PaperAirplaneIcon className="h-5 w-5 mr-2 transform rotate-45"/> Send QUBIC
-                      </h2>
-                       <button onClick={() => setShowSendQubic(!showSendQubic)} className="text-gray-400 hover:text-white">
-                          <ChevronUpIcon className={`h-5 w-5 transition-transform ${!showSendQubic ? 'rotate-180' : ''}`} />
-                       </button>
-                   </div>
-                   {showSendQubic && (
-                       <>
-                          {!connected ? (
-                               <div className="flex items-center p-3 bg-yellow-900 bg-opacity-40 border border-yellow-700 rounded-lg text-yellow-200 text-sm">
-                                  <InformationCircleIcon className="h-5 w-5 mr-2 flex-shrink-0"/> Connect wallet to send.
-                               </div>
-                           ) : (
-                               <form onSubmit={handleSendQubic} className="space-y-4 text-sm">
-                                  <div>
-                                      <label htmlFor="appDestination" className="block text-gray-400 mb-1 font-medium">Destination Address</label>
-                                      <input
-                                          type="text"
-                                          id="appDestination"
-                                          value={destinationAddress}
-                                          onChange={(e) => setDestinationAddress(e.target.value)}
-                                          placeholder="Paste Qubic Public Key (60 chars)"
-                                          className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-200 placeholder-gray-500 font-mono text-xs"
-                                          maxLength={60}
-                                          required
-                                      />
-                                  </div>
-                                   <div>
-                                      <label htmlFor="appAmount" className="block text-gray-400 mb-1 font-medium">Amount (QUBIC)</label>
-                                      <input
-                                          type="number"
-                                          id="appAmount"
-                                          value={sendAmount}
-                                          onChange={(e) => {
-                                               const value = e.target.value;
-                                               if (/^\d*$/.test(value)) {
-                                                   setSendAmount(value);
-                                               }
-                                          }}
-                                          placeholder="e.g., 50"
-                                          className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-200 placeholder-gray-500"
-                                          step="1"
-                                          required
-                                      />
-                                      <p className="text-xs text-gray-500 mt-1">
-                                          Note: The Qubic network may enforce a minimum transaction amount (dust limit).
-                                      </p>
-                                  </div>
-                                  <button
-                                      type="submit"
-                                      disabled={isSending || !destinationAddress || !sendAmount || isBalanceLoading}
-                                      className="w-full flex justify-center items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition duration-150 ease-in-out"
-                                  >
-                                      {isSending ? 'Sending...' : 'Send QUBIC'}
-                                  </button>
-                                   {/* Sending Status Messages */}
-                                  {sendError && (
-                                      <div className="flex items-center p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg text-red-300 text-xs mt-3">
-                                          <ExclamationTriangleIcon className="h-4 w-4 mr-2 flex-shrink-0"/>
-                                          <span><strong>Error:</strong> {sendError}</span>
-                                      </div>
-                                  )}
-                                  {sendResult && sendResult.success && (
-                                      <div className="flex items-start p-3 bg-green-900 bg-opacity-50 border border-green-700 rounded-lg text-green-300 text-xs mt-3 space-x-2">
-                                          <CheckCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0"/>
-                                          <div className="flex-grow">
-                                              <span>{sendResult.message}</span>
-                                              {sendResult.txHash && sendResult.txHash !== 'N/A' && (
-                                                   <a
-                                                      href={sendResult.explorerLink}
-                                                      target="_blank"
-                                                      rel="noopener noreferrer"
-                                                      className="block mt-1 text-blue-400 hover:text-blue-300 underline truncate"
-                                                  >
-                                                     <LinkIcon className="h-3 w-3 inline-block mr-1" /> Tx: {sendResult.txHash}
-                                                  </a>
-                                              )}
-                                          </div>
-                                      </div>
-                                  )}
-                               </form>
-                           )}
-                       </>
-                   )}
-               </div>
-
-              {/* Type Information */}
-              <div className="bg-gray-800 p-4 rounded-lg shadow">
-                <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-                  <h2 className="text-lg font-semibold text-white flex items-center">
-                    <InformationCircleIcon className="h-5 w-5 mr-2"/> Type Information
-                  </h2>
-                  <button onClick={() => setShowTypeInfo(!showTypeInfo)} className="text-gray-400 hover:text-white">
-                    <ChevronUpIcon className={`h-5 w-5 transition-transform ${!showTypeInfo ? 'rotate-180' : ''}`} />
-                  </button>
-                </div>
-                 {showTypeInfo && renderSupportedTypesInfo()}
-              </div>
-
-            </div> {/* End Left Sidebar */}
-
-            {/* --- Main Content Area (New Layout) --- */}
-            <div className="flex-grow flex flex-col gap-4">
-              {/* Top: Contract Selection */}
-              <div className="bg-gray-800 p-4 rounded-lg shadow">
-                  <div className="flex justify-between items-center mb-3">
-                      <h2 className="text-xl font-semibold text-white">Contract</h2>
-                       <button 
-                          onClick={handleAddContractClick} 
-                          className="text-sm bg-gray-600 hover:bg-gray-500 text-gray-200 px-3 py-1.5 rounded flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Feature coming soon"
-                          // disabled // Enable when feature is ready
-                       >
-                          <PlusIcon className="h-4 w-4 mr-1" /> Add Contract
-                      </button>
+                    <h2 className="text-lg font-semibold text-white flex items-center">
+                      <Cog6ToothIcon className="h-5 w-5 mr-2"/> RPC Endpoint
+                    </h2>
+                    <button onClick={() => setShowRpcEndpoint(!showRpcEndpoint)} className="text-gray-400 hover:text-white">
+                      <ChevronUpIcon className={`h-5 w-5 transition-transform ${!showRpcEndpoint ? 'rotate-180' : ''}`} />
+                    </button>
                   </div>
-                  <div className="mb-3">
-                     {isLoading && contracts.length === 0 ? (
-                       <p className="text-sm text-gray-400 italic">Loading contracts...</p>
-                     ) : !isLoading && contracts.length === 0 ? (
-                       <p className="text-sm text-red-400">No contracts found.</p>
-                     ) : (
-                        <select
-                           id="contractSelect"
-                           className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                           value={selectedContract ? selectedContract.fileName : ''}
-                           onChange={(e) => {
-                              const selectedFile = e.target.value;
-                              const contract = contracts.find(c => c.fileName === selectedFile);
-                              setSelectedContract(contract);
-                              setSelectedFunction(null);
-                              setApiResponse(null);
-                           }}
-                        >
-                           <option value="" disabled>-- Select a Contract --</option>
-                           {contracts.map((contract, index) => (
-                             <option key={index} value={contract.fileName}>
-                               {contract.fileName} ({contract.functions.length} functions)
-                             </option>
-                           ))}
-                        </select>
-                      )}
-                   </div>
-                   {selectedContract && (
-                      <p className="text-sm text-gray-400 mt-1">
-                          {/* Placeholder for description - you might need to parse this from comments or add it */}
-                          {selectedContract.fileName.includes('Token') ? 'ERC-20 compatible token contract' : 'Interact with the selected contract.'}
-                      </p>
-                   )}
-              </div> {/* End Contract Selection */}
+                  {showRpcEndpoint && (
+                    <EndpointSetting />
+                  )}
+                </div>
 
-              {/* New Section: Fee Information */}
-              {selectedContract && (
-                 <div className="bg-gray-800 p-4 rounded-lg shadow">
-                     <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-1">
-                        <h2 className="text-lg font-semibold text-white">Contract Fee Information</h2>
-                         <button onClick={() => setShowFeeInfo(!showFeeInfo)} className="text-gray-400 hover:text-white">
-                            <ChevronUpIcon className={`h-5 w-5 transition-transform ${!showFeeInfo ? 'rotate-180' : ''}`} />
-                        </button>
-                     </div>
-                    {showFeeInfo && renderFeeInfo()} 
-                 </div>
-              )}
-
-              {/* Bottom: Function Interaction & Response */}
-              <div className="flex flex-col md:flex-row gap-4 flex-grow">
-                {/* Left Column: Function Interaction */}
-                <div className="md:w-1/2 bg-gray-800 p-4 rounded-lg shadow flex flex-col">
-                   <h2 className="text-lg font-semibold mb-3 text-white border-b border-gray-700 pb-2">Function Interaction</h2>
-                    {!selectedContract ? (
-                       <p className="text-sm text-gray-400 italic text-center mt-6 flex-grow flex items-center justify-center">Select a contract above.</p>
-                    ) : (
-                       <div className="space-y-4 overflow-y-auto pr-1 flex-grow">
-                          <p className="text-sm text-gray-300">Select a function and provide the required parameters.</p>
-                          {/* Function Dropdown */}
-                          <div>
-                             <label htmlFor="functionSelect" className="block text-sm font-medium text-gray-300 mb-1">Function</label>
-                             <div className="flex items-center gap-2">
-                                <select
-                                    id="functionSelect"
-                                    className="flex-grow p-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                    value={selectedFunction ? selectedFunction.name : ''}
-                                    onChange={(e) => {
-                                        const func = selectedContract.functions.find(f => f.name === e.target.value);
-                                        setSelectedFunction(func);
-                                        setApiResponse(null);
-                                    }}
-                                    disabled={!selectedContract}
-                                >
-                                    <option value="" disabled>-- Select a function --</option>
-                                    {selectedContract.functions.map((fn, idx) => (
-                                        <option key={idx} value={fn.name}>{fn.name} ({fn.type})</option>
-                                    ))}
-                                </select>
-                             </div>
-                             {selectedFunction && (
-                                <p className="text-xs text-gray-400 mt-1">
-                                   {/* Placeholder for function description - needs parsing */}
-                                   {`Invoke the ${selectedFunction.name} function.`}
-                                </p>
-                              )}
-                          </div>
-
-                          {selectedFunction && (
-                             <>
-                                {renderFunctionGuidance()} 
-                                {/* Parameters Section */}
-                                {showForm && (
-                                  <div>
-                                      <label className="block text-sm font-medium text-gray-300 mb-2">Parameters</label>
-                                      <DynamicForm 
-                                        fields={selectedFunction.inputs} 
-                                        onSubmit={handleExecute} // The form itself might not need the submit, button below handles it
-                                        isTransaction={selectedFunction.type === 'transaction'}
-                                        onValuesChange={handleFormValuesChange}
-                                        hideSubmitButton={true}
-                                      />
-                                  </div>
-                                )}
-
-                                {/* Transaction Value Input (if applicable) */}
-                                {showTxAmountInput && ( 
-                                  <div className="pt-3">
-                                      <label htmlFor="txValueInput" className="block text-sm font-medium text-gray-300 mb-1">
-                                          Transaction Value (qus)
-                                      </label>
-                                      <input
-                                          type="number"
-                                          id="txValueInput"
-                                          name="txValueInput"
-                                          className={`w-full p-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
-                                          value={txAmount}
-                                          onChange={(e) => setTxAmount(e.target.value.replace(/[^0-9]/g, ''))}
-                                          min="0"
-                                          placeholder="0"
-                                      />
-                                      <p className="text-xs text-gray-400 mt-1">
-                                          {selectedFunction?.name === 'SendToManyV1' 
-                                             ? "WARNING: For SendToManyV1, this MUST equal Sum(amtX) + fee (e.g., 10) in QUS, otherwise the transaction will likely fail."
-                                             : "Amount in millionths (qus) to send with the transaction (e.g., for qearn.lock). Leave as 0 if not required."}
-                                      </p>
-                                  </div>
-                                )}
-
-                                {!showForm && selectedFunction.type === 'view' && (
-                                    <div className="text-center p-3 bg-gray-700 rounded mt-4">
-                                        <p className="text-sm text-gray-300 mb-0">No parameters required for this function.</p>
-                                    </div>
-                                )}
-
-                                {/* Fee Info (Simplified) & Execute Button */}
-                                <div className="mt-auto pt-4 border-t border-gray-700">
-                                    <div className="flex justify-between items-center mb-3 text-sm">
-                                        <span className="text-gray-400">Estimated fee:</span>
-                                        <span className="text-gray-300">
-                                            {(() => {
-                                                if (!selectedFunction) return 'N/A';
-                                                if (selectedFunction.type === 'view') return '0 Qubic';
-                                                
-                                                // For transactions, try to find the specific fee
-                                                const feeData = contractFees[selectedContract?.fileName];
-                                                const feeInQus = feeData?.procedureConstants?.[selectedFunction.name]?.['required amount'];
-                                                
-                                                if (feeInQus !== undefined && feeInQus !== null) {
-                                                    try {
-                                                        const feeBigInt = BigInt(feeInQus);
-                                                        // Assuming fee is in Qus (millionths), convert to Qubic
-                                                        const feeInQubic = Number(feeBigInt) / 1_000_000;
-                                                        return `${feeInQubic.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 6 })} Qubic`;
-                                                    } catch (e) {
-                                                        console.error("Error parsing or formatting fee:", feeInQus, e);
-                                                        return 'Error'; // Indicate a problem processing the fee
-                                                    }
-                                                } else {
-                                                     // If no specific fee is defined for this transaction function, show 0
-                                                    return '0 Qubic';
-                                                }
-                                            })()}
-                                        </span>
-                                    </div>
-                                    <button 
-                                       type="button" 
-                                       onClick={handleExecute}
-                                       disabled={isLoading || (selectedFunction.type === 'transaction' && !connected) || !selectedFunction}
-                                       className={`w-full px-4 py-2 rounded font-semibold text-white transition duration-150 ease-in-out flex items-center justify-center ${selectedFunction.type === 'transaction' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-purple-600 hover:bg-purple-700'} disabled:bg-gray-600 disabled:opacity-70 disabled:cursor-not-allowed`}
-                                    >
-                                        {isLoading ? (
-                                            // Simple loading text for now
-                                            'Processing...'
-                                        ) : selectedFunction.type === 'view' ? (
-                                            <><BeakerIcon className="h-5 w-5 mr-1.5" /> View</> // Using Beaker for View
-                                        ) : (
-                                            <><PaperAirplaneIcon className="h-5 w-5 mr-1.5 transform rotate-45" /> Execute</> // Using PaperAirplane for Execute
-                                        )}
-                                    </button>
-                                </div>
-                             </>
-                           )}
-                       </div>
-                    )}
-                 </div> {/* End Function Interaction */}
-
-                {/* Right Column: Response */}
-                <div className="md:w-1/2 bg-gray-800 p-4 rounded-lg shadow flex flex-col">
-                    <h2 className="text-lg font-semibold mb-3 text-white border-b border-gray-700 pb-2">Response</h2>
-                    <p className="text-sm text-gray-300 mb-3">Function call results will appear here</p>
-                    <div className="flex-grow overflow-y-auto pr-1">
-                        {apiResponse ? (
-                            renderApiResponse()
-                        ) : (
-                            <div className="h-full flex items-center justify-center border border-dashed border-gray-600 rounded-md p-6">
-                               <p className="text-sm text-gray-500 italic">No recent function calls</p>
+                {/* Wallet Info */}
+                <div className="bg-gray-800 p-4 rounded-lg shadow">
+                  <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                    <h2 className="text-lg font-semibold text-white flex items-center">
+                      <WalletIcon className="h-5 w-5 mr-2"/> Wallet Info
+                    </h2>
+                    <button onClick={() => setShowWalletInfo(!showWalletInfo)} className="text-gray-400 hover:text-white">
+                      <ChevronUpIcon className={`h-5 w-5 transition-transform ${!showWalletInfo ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                  {showWalletInfo && (
+                    <>
+                        {!connected ? (
+                            <div className="flex items-center p-3 bg-yellow-900 bg-opacity-40 border border-yellow-700 rounded-lg text-yellow-200 text-sm">
+                               <InformationCircleIcon className="h-5 w-5 mr-2 flex-shrink-0"/> Please connect your wallet.
                             </div>
+                        ) : (
+                            <div className="space-y-3 text-sm max-h-60 overflow-y-auto pr-1">
+                               <div>
+                                   <span className="font-medium text-gray-400">Status:</span>
+                                   <span className="ml-2 text-green-400">Connected</span>
+                               </div>
+                                <div>
+                                   <span className="font-medium text-gray-400">Public Key:</span>
+                                   <span className="ml-2 font-mono break-all">{wallet.publicKey}</span>
+                               </div>
+                                <div>
+                                   <span className="font-medium text-gray-400">Balance:</span>
+                                   {isBalanceLoading ? (
+                                       <span className="ml-2 text-gray-400 italic">Loading...</span>
+                                   ) : contextBalanceError ? (
+                                       <span className="ml-2 text-red-400">{contextBalanceError}</span>
+                                   ) : formattedBalance !== null ? (
+                                        <span className="ml-2 font-semibold text-lg">{formattedBalance} <span className="text-xs">QUBIC</span></span>
+                                   ) : (
+                                       <span className="ml-2 text-gray-500 italic">N/A</span>
+                                   )}
+                               </div>
+                                {/* Owned Assets */}
+                                <div>
+                                   <span className="font-medium text-gray-400">Owned Assets:</span>
+                                   {isAssetsLoading ? (
+                                       <span className="ml-2 text-gray-400 italic">Loading...</span>
+                                   ) : assetsError ? (
+                                       <span className="ml-2 text-red-400">{assetsError}</span>
+                                   ) : ownedAssets && ownedAssets.length > 0 ? (
+                                       <ul className="ml-2 list-none space-y-1 mt-1">
+                                           {ownedAssets.map((asset, index) => (
+                                               <li key={`owned-${index}`} className="font-mono text-xs bg-gray-700 px-2 py-1 rounded break-all">
+                                                   {asset?.data?.numberOfUnits ? `${asset.data.numberOfUnits} x ` : ''}
+                                                   {asset?.data?.issuedAsset?.name || 'Unknown Asset'}
+                                               </li>
+                                           ))}
+                                       </ul>
+                                   ) : (
+                                       <span className="ml-2 text-gray-500 italic">No assets found.</span>
+                                   )}
+                               </div>
+                               {/* Possessed Assets */}
+                                <div>
+                                   <span className="font-medium text-gray-400">Possessed Assets:</span>
+                                   {isPossessedAssetsLoading ? (
+                                       <span className="ml-2 text-gray-400 italic">Loading...</span>
+                                   ) : possessedAssetsError ? (
+                                       <span className="ml-2 text-red-400">{possessedAssetsError}</span>
+                                   ) : possessedAssets && possessedAssets.length > 0 ? (
+                                       <ul className="ml-2 list-none space-y-1 mt-1">
+                                           {possessedAssets.map((asset, index) => (
+                                               <li key={`possessed-${index}`} className="font-mono text-xs bg-gray-700 px-2 py-1 rounded break-all">
+                                                   {asset?.data?.numberOfUnits ? `${asset.data.numberOfUnits} x ` : ''}
+                                                   {asset?.data?.ownedAsset?.issuedAsset?.name || asset?.data?.issuedAsset?.name || 'Unknown Asset'}
+                                               </li>
+                                           ))}
+                                       </ul>
+                                   ) : (
+                                       <span className="ml-2 text-gray-500 italic">No possessed assets found.</span>
+                                   )}
+                               </div>
+                           </div>
                         )}
-                    </div>
-                </div> {/* End Response */}
-              </div> {/* End Bottom Section */}
-            </div> {/* End Main Content Area */}
-        </div> {/* End Main Layout */}
+                    </>
+                  )}
+                </div>
 
-      <ConfirmTxModal />
-      <FaucetModal open={showFaucetModal} onClose={() => setShowFaucetModal(false)} />
-    </div>
+                {/* Contract Index Manager */}
+                <div className="bg-gray-800 p-4 rounded-lg shadow">
+                  <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                    <h2 className="text-lg font-semibold text-white flex items-center">
+                      <Cog6ToothIcon className="h-5 w-5 mr-2"/> Contract Indexes
+                    </h2>
+                    <button onClick={() => setShowContractIndexes(!showContractIndexes)} className="text-gray-400 hover:text-white">
+                      <ChevronUpIcon className={`h-5 w-5 transition-transform ${!showContractIndexes ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                  {showContractIndexes && <ContractIndexManager />}
+                </div>
+
+                {/* Send QUBIC */}
+                <div className="bg-gray-800 p-4 rounded-lg shadow">
+                    <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                        <h2 className="text-lg font-semibold text-white flex items-center">
+                             <PaperAirplaneIcon className="h-5 w-5 mr-2 transform rotate-45"/> Send QUBIC
+                        </h2>
+                         <button onClick={() => setShowSendQubic(!showSendQubic)} className="text-gray-400 hover:text-white">
+                            <ChevronUpIcon className={`h-5 w-5 transition-transform ${!showSendQubic ? 'rotate-180' : ''}`} />
+                         </button>
+                     </div>
+                     {showSendQubic && (
+                         <>
+                            {!connected ? (
+                                 <div className="flex items-center p-3 bg-yellow-900 bg-opacity-40 border border-yellow-700 rounded-lg text-yellow-200 text-sm">
+                                    <InformationCircleIcon className="h-5 w-5 mr-2 flex-shrink-0"/> Connect wallet to send.
+                                 </div>
+                             ) : (
+                                 <form onSubmit={handleSendQubic} className="space-y-4 text-sm">
+                                    <div>
+                                        <label htmlFor="appDestination" className="block text-gray-400 mb-1 font-medium">Destination Address</label>
+                                        <input
+                                            type="text"
+                                            id="appDestination"
+                                            value={destinationAddress}
+                                            onChange={(e) => setDestinationAddress(e.target.value)}
+                                            placeholder="Paste Qubic Public Key (60 chars)"
+                                            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-200 placeholder-gray-500 font-mono text-xs"
+                                            maxLength={60}
+                                            required
+                                        />
+                                    </div>
+                                     <div>
+                                        <label htmlFor="appAmount" className="block text-gray-400 mb-1 font-medium">Amount (QUBIC)</label>
+                                        <input
+                                            type="number"
+                                            id="appAmount"
+                                            value={sendAmount}
+                                            onChange={(e) => {
+                                                 const value = e.target.value;
+                                                 if (/^\d*$/.test(value)) {
+                                                     setSendAmount(value);
+                                                 }
+                                            }}
+                                            placeholder="e.g., 50"
+                                            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-200 placeholder-gray-500"
+                                            step="1"
+                                            required
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Note: The Qubic network may enforce a minimum transaction amount (dust limit).
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={isSending || !destinationAddress || !sendAmount || isBalanceLoading}
+                                        className="w-full flex justify-center items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition duration-150 ease-in-out"
+                                    >
+                                        {isSending ? 'Sending...' : 'Send QUBIC'}
+                                    </button>
+                                     {/* Sending Status Messages */}
+                                    {sendError && (
+                                        <div className="flex items-center p-3 bg-red-900 bg-opacity-50 border border-red-700 rounded-lg text-red-300 text-xs mt-3">
+                                            <ExclamationTriangleIcon className="h-4 w-4 mr-2 flex-shrink-0"/>
+                                            <span><strong>Error:</strong> {sendError}</span>
+                                        </div>
+                                    )}
+                                    {sendResult && sendResult.success && (
+                                        <div className="flex items-start p-3 bg-green-900 bg-opacity-50 border border-green-700 rounded-lg text-green-300 text-xs mt-3 space-x-2">
+                                            <CheckCircleIcon className="h-4 w-4 mt-0.5 flex-shrink-0"/>
+                                            <div className="flex-grow">
+                                                <span>{sendResult.message}</span>
+                                                {sendResult.txHash && sendResult.txHash !== 'N/A' && (
+                                                     <a
+                                                        href={sendResult.explorerLink}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="block mt-1 text-blue-400 hover:text-blue-300 underline truncate"
+                                                    >
+                                                       <LinkIcon className="h-3 w-3 inline-block mr-1" /> Tx: {sendResult.txHash}
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                 </form>
+                             )}
+                         </>
+                     )}
+                 </div>
+
+                {/* Type Information */}
+                <div className="bg-gray-800 p-4 rounded-lg shadow">
+                  <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                    <h2 className="text-lg font-semibold text-white flex items-center">
+                      <InformationCircleIcon className="h-5 w-5 mr-2"/> Type Information
+                    </h2>
+                    <button onClick={() => setShowTypeInfo(!showTypeInfo)} className="text-gray-400 hover:text-white">
+                      <ChevronUpIcon className={`h-5 w-5 transition-transform ${!showTypeInfo ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                   {showTypeInfo && renderSupportedTypesInfo()}
+                </div>
+
+              </div> {/* End Left Sidebar */}
+
+              {/* --- Main Content Area (New Layout) --- */}
+              {currentView === VIEWS.CONTRACT_EXPLORER ? (
+                <div className="flex-grow flex flex-col gap-4">
+                  {/* Top: Contract Selection */}
+                  <div className="bg-gray-800 p-4 rounded-lg shadow">
+                      <div className="flex justify-between items-center mb-3">
+                          <h2 className="text-xl font-semibold text-white">Contract</h2>
+                           <button 
+                              onClick={handleAddContractClick} 
+                              className="text-sm bg-gray-600 hover:bg-gray-500 text-gray-200 px-3 py-1.5 rounded flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Feature coming soon"
+                              // disabled // Enable when feature is ready
+                           >
+                              <PlusIcon className="h-4 w-4 mr-1" /> Add Contract
+                          </button>
+                      </div>
+                      <div className="mb-3">
+                         {isLoading && contracts.length === 0 ? (
+                           <p className="text-sm text-gray-400 italic">Loading contracts...</p>
+                         ) : !isLoading && contracts.length === 0 ? (
+                           <p className="text-sm text-red-400">No contracts found.</p>
+                         ) : (
+                            <select
+                               id="contractSelect"
+                               className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                               value={selectedContract ? selectedContract.fileName : ''}
+                               onChange={(e) => {
+                                  const selectedFile = e.target.value;
+                                  const contract = contracts.find(c => c.fileName === selectedFile);
+                                  setSelectedContract(contract);
+                                  setSelectedFunction(null);
+                                  setApiResponse(null);
+                               }}
+                            >
+                               <option value="" disabled>-- Select a Contract --</option>
+                               {contracts.map((contract, index) => (
+                                 <option key={index} value={contract.fileName}>
+                                   {contract.fileName} ({contract.functions.length} functions)
+                                 </option>
+                               ))}
+                            </select>
+                          )}
+                       </div>
+                       {selectedContract && (
+                          <p className="text-sm text-gray-400 mt-1">
+                              {/* Placeholder for description - you might need to parse this from comments or add it */}
+                              {selectedContract.fileName.includes('Token') ? 'ERC-20 compatible token contract' : 'Interact with the selected contract.'}
+                          </p>
+                       )}
+                  </div> {/* End Contract Selection */}
+
+                  {/* New Section: Fee Information */}
+                  {selectedContract && (
+                     <div className="bg-gray-800 p-4 rounded-lg shadow">
+                         <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-1">
+                            <h2 className="text-lg font-semibold text-white">Contract Fee Information</h2>
+                             <button onClick={() => setShowFeeInfo(!showFeeInfo)} className="text-gray-400 hover:text-white">
+                                <ChevronUpIcon className={`h-5 w-5 transition-transform ${!showFeeInfo ? 'rotate-180' : ''}`} />
+                             </button>
+                          </div>
+                         {showFeeInfo && renderFeeInfo()} 
+                      </div>
+                   )}
+
+                   {/* Bottom: Function Interaction & Response */}
+                   <div className="flex flex-col md:flex-row gap-4 flex-grow">
+                     {/* Left Column: Function Interaction */}
+                     <div className="md:w-1/2 bg-gray-800 p-4 rounded-lg shadow flex flex-col">
+                        <h2 className="text-lg font-semibold mb-3 text-white border-b border-gray-700 pb-2">Function Interaction</h2>
+                         {!selectedContract ? (
+                            <p className="text-sm text-gray-400 italic text-center mt-6 flex-grow flex items-center justify-center">Select a contract above.</p>
+                         ) : (
+                            <div className="space-y-4 overflow-y-auto pr-1 flex-grow">
+                               <p className="text-sm text-gray-300">Select a function and provide the required parameters.</p>
+                               {/* Function Dropdown */}
+                               <div>
+                                  <label htmlFor="functionSelect" className="block text-sm font-medium text-gray-300 mb-1">Function</label>
+                                  <div className="flex items-center gap-2">
+                                     <select
+                                         id="functionSelect"
+                                         className="flex-grow p-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                         value={selectedFunction ? selectedFunction.name : ''}
+                                         onChange={(e) => {
+                                             const func = selectedContract.functions.find(f => f.name === e.target.value);
+                                             setSelectedFunction(func);
+                                             setApiResponse(null);
+                                         }}
+                                         disabled={!selectedContract}
+                                     >
+                                         <option value="" disabled>-- Select a function --</option>
+                                         {selectedContract.functions.map((fn, idx) => (
+                                             <option key={idx} value={fn.name}>{fn.name} ({fn.type})</option>
+                                         ))}
+                                     </select>
+                                  </div>
+                                  {selectedFunction && (
+                                     <p className="text-xs text-gray-400 mt-1">
+                                        {/* Placeholder for function description - needs parsing */}
+                                        {`Invoke the ${selectedFunction.name} function.`}
+                                     </p>
+                                   )}
+                               </div>
+
+                               {selectedFunction && (
+                                  <>
+                                     {renderFunctionGuidance()} 
+                                     {/* Parameters Section */}
+                                     {showForm && (
+                                       <div>
+                                           <label className="block text-sm font-medium text-gray-300 mb-2">Parameters</label>
+                                           <DynamicForm 
+                                             fields={selectedFunction.inputs} 
+                                             onSubmit={handleExecute} // The form itself might not need the submit, button below handles it
+                                             isTransaction={selectedFunction.type === 'transaction'}
+                                             onValuesChange={handleFormValuesChange}
+                                             hideSubmitButton={true}
+                                           />
+                                       </div>
+                                     )}
+
+                                     {/* Transaction Value Input (if applicable) */}
+                                     {showTxAmountInput && ( 
+                                       <div className="pt-3">
+                                           <label htmlFor="txValueInput" className="block text-sm font-medium text-gray-300 mb-1">
+                                               Transaction Value (qus)
+                                           </label>
+                                           <input
+                                               type="number"
+                                               id="txValueInput"
+                                               name="txValueInput"
+                                               className={`w-full p-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
+                                               value={txAmount}
+                                               onChange={(e) => setTxAmount(e.target.value.replace(/[^0-9]/g, ''))}
+                                               min="0"
+                                               placeholder="0"
+                                           />
+                                           <p className="text-xs text-gray-400 mt-1">
+                                               {selectedFunction?.name === 'SendToManyV1' 
+                                                  ? "WARNING: For SendToManyV1, this MUST equal Sum(amtX) + fee (e.g., 10) in QUS, otherwise the transaction will likely fail."
+                                                  : "Amount in millionths (qus) to send with the transaction (e.g., for qearn.lock). Leave as 0 if not required."}
+                                           </p>
+                                       </div>
+                                     )}
+
+                                     {!showForm && selectedFunction.type === 'view' && (
+                                         <div className="text-center p-3 bg-gray-700 rounded mt-4">
+                                             <p className="text-sm text-gray-300 mb-0">No parameters required for this function.</p>
+                                         </div>
+                                     )}
+
+                                     {/* Fee Info (Simplified) & Execute Button */}
+                                     <div className="mt-auto pt-4 border-t border-gray-700">
+                                         <div className="flex justify-between items-center mb-3 text-sm">
+                                             <span className="text-gray-400">Estimated fee:</span>
+                                             <span className="text-gray-300">
+                                                 {(() => {
+                                                     if (!selectedFunction) return 'N/A';
+                                                     if (selectedFunction.type === 'view') return '0 Qubic';
+                                                     
+                                                     // For transactions, try to find the specific fee
+                                                     const feeData = contractFees[selectedContract?.fileName];
+                                                     const feeInQus = feeData?.procedureConstants?.[selectedFunction.name]?.['required amount'];
+                                                     
+                                                     if (feeInQus !== undefined && feeInQus !== null) {
+                                                         try {
+                                                             const feeBigInt = BigInt(feeInQus);
+                                                             // Assuming fee is in Qus (millionths), convert to Qubic
+                                                             const feeInQubic = Number(feeBigInt) / 1_000_000;
+                                                             return `${feeInQubic.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 6 })} Qubic`;
+                                                         } catch (e) {
+                                                             console.error("Error parsing or formatting fee:", feeInQus, e);
+                                                             return 'Error'; // Indicate a problem processing the fee
+                                                         }
+                                                     } else {
+                                                          // If no specific fee is defined for this transaction function, show 0
+                                                         return '0 Qubic';
+                                                     }
+                                                 })()}
+                                             </span>
+                                         </div>
+                                         <button 
+                                            type="button" 
+                                            onClick={handleExecute}
+                                            disabled={isLoading || (selectedFunction.type === 'transaction' && !connected) || !selectedFunction}
+                                            className={`w-full px-4 py-2 rounded font-semibold text-white transition duration-150 ease-in-out flex items-center justify-center ${selectedFunction.type === 'transaction' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-purple-600 hover:bg-purple-700'} disabled:bg-gray-600 disabled:opacity-70 disabled:cursor-not-allowed`}
+                                         >
+                                             {isLoading ? (
+                                                 // Simple loading text for now
+                                                 'Processing...'
+                                             ) : selectedFunction.type === 'view' ? (
+                                                 <><BeakerIcon className="h-5 w-5 mr-1.5" /> View</> // Using Beaker for View
+                                             ) : (
+                                                 <><PaperAirplaneIcon className="h-5 w-5 mr-1.5 transform rotate-45" /> Execute</> // Using PaperAirplane for Execute
+                                             )}
+                                         </button>
+                                     </div>
+                                  </>
+                                )}
+                            </div>
+                         )}
+                     </div> {/* End Function Interaction */}
+
+                     {/* Right Column: Response */}
+                     <div className="md:w-1/2 bg-gray-800 p-4 rounded-lg shadow flex flex-col">
+                         <h2 className="text-lg font-semibold mb-3 text-white border-b border-gray-700 pb-2">Response</h2>
+                         <p className="text-sm text-gray-300 mb-3">Function call results will appear here</p>
+                         <div className="flex-grow overflow-y-auto pr-1">
+                             {apiResponse ? (
+                                 renderApiResponse()
+                             ) : (
+                                 <div className="h-full flex items-center justify-center border border-dashed border-gray-600 rounded-md p-6">
+                                    <p className="text-sm text-gray-500 italic">No recent function calls</p>
+                                 </div>
+                             )}
+                         </div>
+                     </div> {/* End Response */}
+                   </div> {/* End Bottom Section */}
+                 </div>
+               ) : currentView === VIEWS.QSWAP ? (
+                 <div className="flex-grow">
+                   <QSwap />
+                 </div>
+               ) : currentView === VIEWS.NOSTROMO ? (
+                 <div className="flex-grow">
+                   <Nostromo />
+                 </div>
+               ) : null} {/* End Main Content Area */}
+          </div> {/* End Main Layout */}
+
+        <ConfirmTxModal />
+        <FaucetModal open={showFaucetModal} onClose={() => setShowFaucetModal(false)} />
+      </div>
+    </WalletContext.Provider>
   );
 };
 

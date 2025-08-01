@@ -47,9 +47,17 @@ export async function executeTransactionWithWallet({
 
     // Convert contract name to index if needed
     let contractIdxNum = contractIndex;
+    console.log('[transactionApi] Original contractIndex:', contractIndex, 'type:', typeof contractIndex);
+    console.log('[transactionApi] contractIndexes passed:', contractIndexes);
+    
     if (typeof contractIndex === 'string') {
         contractIdxNum = getContractIndex(contractIndex, contractIndexes);
+        console.log('[transactionApi] String contractIndex converted:', contractIndex, '->', contractIdxNum);
+    } else {
+        console.log('[transactionApi] Numeric contractIndex used directly:', contractIdxNum);
     }
+    
+    console.log('[transactionApi] Final contractIdxNum:', contractIdxNum, 'type:', typeof contractIdxNum);
 
     console.log(`Transaction Prep - Contract: ${contractIndex} -> ${contractIdxNum}, Procedure: ${procedureIndex}, Tick: ${finalTick}`);
 

@@ -10,6 +10,7 @@ import QRCode from "qrcode"
 import { useQubicConnect } from "../../../context/QubicConnectContext" // Corrected path
 import { truncateMiddle, formatQubicAmount } from "../util" // Path should be correct relative to connect/
 // Removed HM25, WalletConnectContext, MetamaskContext, ConfigContext dependencies as logic is moved to QubicConnectContext
+import PropTypes from 'prop-types';
 
 const ConnectModal = ({ open, onClose }) => {
     console.log("[ConnectModal] Rendering. Open prop:", open);
@@ -588,5 +589,10 @@ const ConnectModal = ({ open, onClose }) => {
         </div>
     )
 }
+
+ConnectModal.propTypes = {
+  open: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+};
 
 export default ConnectModal 

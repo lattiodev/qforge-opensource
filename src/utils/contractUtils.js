@@ -33,6 +33,8 @@ export const CONTRACT_INDEXES = {
   'Msvault': 11,
   'QBAY': 12,
   'Qbay': 12,
+  'NOSTROMO': 13,
+  'Nostromo': 13,
 };
 
 // Helper function to get contract index
@@ -152,6 +154,9 @@ function encodeValue(value, type, qHelper, size = 0) {
         buffer = Buffer.alloc(8);
         const valToEncode = isAmountField ? scaleAmount(value) : BigInt(value || 0);
         buffer.writeBigUInt64LE(valToEncode, 0);
+    } else if (type === 'bit' || type === 'bool') {
+        buffer = Buffer.alloc(1);
+        buffer.writeUInt8(value ? 1 : 0, 0);
     } else if (type === 'int8' || type === 'sint8') {
         buffer = Buffer.alloc(1);
         buffer.writeInt8(parseInt(value || 0), 0);
@@ -184,9 +189,6 @@ function encodeValue(value, type, qHelper, size = 0) {
                  buffer.fill(0);
             }
         }
-    } else if (type === 'bit' || type === 'bool') {
-        buffer = Buffer.alloc(1);
-        buffer.writeUInt8(value ? 1 : 0, 0);
     } else if (type.startsWith('char[')) {
         const sizeMatch = type.match(/\[(\d+)\]/);
         const charSize = sizeMatch ? parseInt(sizeMatch[1], 10) : size || 64; // Use provided size or default

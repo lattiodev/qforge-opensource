@@ -28,7 +28,7 @@ const FAUCET_CONFIG = {
     testnet: {
         seed: process.env.FAUCET_TESTNET_SEED,
         rpc: process.env.FAUCET_TESTNET_RPC || 'https://testnet-rpc.qubicdev.com/',
-        amount: 1000000, // 1,000,000 Qubic
+        amount: 1500000000, // 1,500,000,000 Qubic
         label: "Testnet",
         enabled: !!process.env.FAUCET_TESTNET_SEED
     }
